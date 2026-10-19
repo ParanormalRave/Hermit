@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+# hermit - save a user's home folders to a drive, and put them back later.
+set -euo pipefail
+
+HERMIT_VERSION="0.1.0"
+
+usage() {
+  cat <<'EOF'
+Usage: hermit <command> [options]
+
+Commands:
+  backup <drive-path>              Save home folders to <drive-path>/hermit-backup/
+  restore <drive-path> [--dry-run] Put files back under $HOME from the backup
+
+Options:
+  -h, --help                       Show this help
+  -V, --version                    Show the version
+EOF
+}
+
+cmd_backup() {
+  printf 'TODO: backup %s\n' "${*:-<no drive given>}" >&2
+}
+
+cmd_restore() {
+  printf 'TODO: restore %s\n' "${*:-<no drive given>}" >&2
+}
+
+main() {
+  case "${1:-}" in
+    backup)
+      shift
+      cmd_backup "$@"
+      ;;
+    restore)
+      shift
+      cmd_restore "$@"
+      ;;
+    -h | --help | help)
+      usage
+      ;;
+    -V | --version)
+      printf 'hermit %s\n' "$HERMIT_VERSION"
+      ;;
+    '')
+      usage >&2
+      exit 2
+      ;;
+    *)
+      printf 'hermit: unknown command: %s\n' "$1" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
+}
+
+main "$@"
