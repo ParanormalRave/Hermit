@@ -50,3 +50,24 @@ unquoted `$*` collapses repeated spaces and expands globs, so
 `error()` is for preconditions only — in `restore`, one unreadable file must
 `warn` and increment the `failed` counter, or a single bad file would abort the
 whole restore.
+
+## Step 2 — `lib/paths.sh`
+
+**Built:** `in_home` (is this path under `$HOME`?), `home_rel` (absolute path →
+`Documents/notes.txt`) and `home_abs` (relative path → `$HOME/...`), plus the
+internal `_valid_rel` that rejects absolute input, trailing slashes, `//`,
+`.` and `..` components.
+
+**Key concept:** the manifest stores *relative* paths only. `/home/rave/notes`
+would break on a machine whose user is `sam`; `Documents/notes` does not. These
+three helpers are the single place where that translation happens, so `backup`
+and `restore` never hardcode a username. They return non-zero instead of
+printing a message — the caller decides whether a bad path is fatal (`error`)
+or a `warn` plus a failed count.
+
+**Gotcha:** prefix matching alone is not containment. `/home/rave/../etc/passwd`
+starts with `$HOME/` but points at `/etc`, so `..` must be rejected as a
+*component*; splitting on `/` with `local IFS=/` and comparing whole parts is
+safer than a `case` glob. Also `HOME=${HOME%/}` so a trailing slash on `$HOME`
+cannot turn `$HOME/*` into `//*`; when `HOME=/` the trimmed value is empty and
+`printf '%s/%s' "" "etc"` still yields `/etc`.

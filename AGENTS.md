@@ -101,4 +101,6 @@ hermit restore <drive-path> [--dry-run]
 - Step 0 done: repo skeleton + `hermit` stub (commit 2ec1dbe).
 - Step 1 done: `lib/common.sh` — `info`/`warn`/`error`, all to stderr,
   `error()` exits 1.
-- Step 2 next: `lib/paths.sh`.
+- Step 2 done: `lib/paths.sh` — `in_home`/`home_rel`/`home_abs`, home-relative
+  paths only, `..` and absolute input refused.
+- Step 3 next: `lib/manifest.sh`.
