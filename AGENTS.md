@@ -103,4 +103,7 @@ hermit restore <drive-path> [--dry-run]
   `error()` exits 1.
 - Step 2 done: `lib/paths.sh` — `in_home`/`home_rel`/`home_abs`, home-relative
   paths only, `..` and absolute input refused.
-- Step 3 next: `lib/manifest.sh`.
+- Step 3 done: `lib/manifest.sh` — `manifest_init`/`manifest_add`/
+  `manifest_read`; header checked, bad rows warned and skipped.
+- Step 4 next: `hermit` CLI dispatch — source the libs, parse `<drive>` and
+  `--dry-run`.

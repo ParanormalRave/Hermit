@@ -71,3 +71,23 @@ starts with `$HOME/` but points at `/etc`, so `..` must be rejected as a
 safer than a `case` glob. Also `HOME=${HOME%/}` so a trailing slash on `$HOME`
 cannot turn `$HOME/*` into `//*`; when `HOME=/` the trimmed value is empty and
 `printf '%s/%s' "" "etc"` still yields `/etc`.
+
+## Step 3 — `lib/manifest.sh`
+
+**Built:** `manifest_init` (write the header), `manifest_add` (append one
+validated row) and `manifest_read` (check the header, then stream valid rows),
+plus the internal `_manifest_valid` used by both writer and reader.
+
+**Key concept:** one format authority. Every row is checked twice — on the way
+in and on the way out — so a hand-edited or corrupt manifest cannot smuggle an
+absolute path or `..` into `restore`. Writer and reader share `_manifest_valid`
+so they can never disagree about what "valid" means. Bad data rows are warnings
+(the caller counts them); a bad *header* is fatal, because then every row is
+suspect.
+
+**Gotcha:** `done < <(manifest_read "$file")` runs the reader in a **subshell**,
+so its exit status never reaches `restore` — a wrong header would silently
+produce zero rows and look like success. Step 4 must validate the header
+separately (or read the file twice) before trusting the stream. Also
+`while IFS= read -r line || [ -n "$line" ]`: without the `|| [ -n ... ]` tail, a
+final line with no trailing newline is dropped silently.
