@@ -38,12 +38,15 @@ _manifest_valid() {
 }
 
 # manifest_init FILE
-# Create or truncate FILE and write the header line.
+# Create or truncate FILE and write the comment line and header.
 manifest_init() {
   local file=${1:-}
 
   [ -n "$file" ] || return 1
-  printf '%s\n' "$MANIFEST_HEADER" > "$file"
+  {
+    printf '%s\n' '# hermit manifest v1'
+    printf '%s\n' "$MANIFEST_HEADER"
+  } > "$file"
 }
 
 # manifest_add FILE TYPE REL SIZE MODE
@@ -68,7 +71,7 @@ manifest_add() {
 # skipped so restore can count it as failed.
 manifest_read() {
   local file=${1:-}
-  local line type rel size mode
+  local line type rel size mode tabs
   local header_seen=0
   local -a fields
 
@@ -82,6 +85,14 @@ manifest_read() {
     if [ "$header_seen" -eq 0 ]; then
       [ "$line" = "$MANIFEST_HEADER" ] || return 1
       header_seen=1
+      continue
+    fi
+
+    # Tab is IFS whitespace, so `read -a` collapses runs of tabs and drops
+    # leading/trailing ones. Count tabs instead: 3 tabs means exactly 4 fields.
+    tabs=${line//$'\t'/}
+    if [ $(( ${#line} - ${#tabs} )) -ne 3 ]; then
+      warn "manifest: skipping malformed line: $line"
       continue
     fi
 

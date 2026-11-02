@@ -35,7 +35,8 @@ Do not add these or "prepare for" them.
 
 ## Files (create only these, one at a time, as needed)
 hermit, lib/common.sh, lib/manifest.sh, lib/paths.sh, tests/test_v01.sh,
-LEARNING.md, README.md, AGENTS.md (this file).
+tests/test_lib.sh (approved 2026-11-02, tests for lib/), LEARNING.md,
+README.md, AGENTS.md (this file).
 
 ## README.md — NEVER EDIT
 README.md is the author's original text. Do not rewrite, reformat, or
@@ -105,5 +106,10 @@ hermit restore <drive-path> [--dry-run]
   paths only, `..` and absolute input refused.
 - Step 3 done: `lib/manifest.sh` — `manifest_init`/`manifest_add`/
   `manifest_read`; header checked, bad rows warned and skipped.
+- Step 3 review done: tab/newline names rejected in `_valid_rel`,
+  `manifest_read` rejects rows that do not have exactly 3 tabs,
+  `manifest_init` writes the `# hermit manifest v1` comment. Tests live in
+  `tests/test_lib.sh` (16 cases, all passing).
+- Symlinks: skipped with a warning in v0.1 (see LEARNING.md).
 - Step 4 next: `hermit` CLI dispatch — source the libs, parse `<drive>` and
   `--dry-run`.

@@ -91,3 +91,18 @@ produce zero rows and look like success. Step 4 must validate the header
 separately (or read the file twice) before trusting the stream. Also
 `while IFS= read -r line || [ -n "$line" ]`: without the `|| [ -n ... ]` tail, a
 final line with no trailing newline is dropped silently.
+
+---
+
+## Design decision — symlinks are skipped in v0.1
+
+**Decision:** `backup` will skip symlinks and print a warning. It will not
+follow them and will not write them to the manifest.
+
+**Why:** the manifest has only two types, `f` (file) and `d` (directory), and
+`in_home` compares paths as plain strings without resolving symlinks. A link
+can point outside `$HOME`, so following it would copy data from outside the
+agreed scope, and recording it as `f` or `d` would restore the wrong thing.
+Skipping with a warning keeps v0.1 inside its safety rules.
+
+**When:** implement this in `cmd_backup`; not before.

@@ -12,8 +12,11 @@ _valid_rel() {
   local part
 
   [ -n "$rel" ] || return 1
+  # Reject tabs and newlines before splitting: `read` stops at the first
+  # newline (so $'a\nb' would be checked as just "a"), and a tab would break
+  # the tab-separated manifest row.
   case "$rel" in
-    /* | */) return 1 ;;
+    /* | */ | *$'\t'* | *$'\n'*) return 1 ;;
   esac
 
   read -r -a parts <<< "$rel"
