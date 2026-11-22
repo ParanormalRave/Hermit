@@ -156,3 +156,19 @@ any `rm` runs.
 error, and a typo like `FAKE_HOME=/` would delete outside `/tmp`. The guard
 makes both cases print `refusing to remove ...` instead. Also kept `rm -r`,
 never `rm -rf` — the repo safety rule forbids `rm -rf` entirely.
+
+---
+
+## Step 0d — ShellCheck sweep (clean, no fixes)
+
+**Built:** nothing — ran `shellcheck hermit lib/*.sh tests/*.sh`
+(ShellCheck 0.11.0) and confirmed exit 0 with zero warnings, plus
+`bash tests/test_lib.sh` still `0 failure(s)`.
+
+**Key concept:** ShellCheck is a static linter: it reads the code without
+running it and flags quoting, subshell, and exit-code bugs. Exit 0 with no
+output means clean — the required end-of-step gate.
+
+**Gotcha:** no output IS the pass signal. A new warning after a future edit
+means the edit introduced it — fix only that warning, don't reformat
+working code around it.
