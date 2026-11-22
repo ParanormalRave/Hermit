@@ -137,3 +137,22 @@ and it is NOT listed in `manifest.tsv`.
 (`Documents/...`), so `engine/` — which is program code on the drive, not
 user data — must stay out of it, or `restore` would copy `hermit` itself
 into `$HOME`.
+
+---
+
+## Step 0c — safe cleanup trap in `tests/test_lib.sh`
+
+**Built:** replaced `trap 'rm -r -- "$FAKE_HOME"' EXIT` with a `cleanup()`
+function that only removes `$FAKE_HOME` when it matches `/tmp/*`, and
+refuses otherwise. `FAKE_HOME` still comes from `mktemp -d`.
+
+**Key concept:** `trap cleanup EXIT` runs the function when the script ends
+for any reason (pass, fail, or `set -e` abort), so temp dirs never pile up.
+`case` with the `/tmp/*` glob is the guard — string matching happens before
+any `rm` runs.
+
+**Gotcha:** the old one-liner expanded `$FAKE_HOME` at trap time. If
+`mktemp` had failed (empty value) the trap would run `rm -r -- ""` and
+error, and a typo like `FAKE_HOME=/` would delete outside `/tmp`. The guard
+makes both cases print `refusing to remove ...` instead. Also kept `rm -r`,
+never `rm -rf` — the repo safety rule forbids `rm -rf` entirely.

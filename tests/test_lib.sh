@@ -5,7 +5,13 @@ set -uo pipefail
 REPO=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 FAKE_HOME=$(mktemp -d)
 export HOME=$FAKE_HOME
-trap 'rm -r -- "$FAKE_HOME"' EXIT
+cleanup() {
+  case "$FAKE_HOME" in
+    /tmp/*) rm -r -- "$FAKE_HOME" ;;
+    *) printf 'refusing to remove %s\n' "$FAKE_HOME" >&2 ;;
+  esac
+}
+trap cleanup EXIT
 
 fails=0
 pass() { printf 'PASS %s\n' "$1"; }
