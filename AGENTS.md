@@ -51,6 +51,7 @@ Desktop, Pictures, Videos, Music. Always use $HOME, never /home/<name>.
   manifest.tsv
   meta.env
   files/        mirror of the saved folders, e.g. files/Documents/notes.txt
+  engine/       copy of `hermit` and `lib/` so a new machine can restore straight from the drive (NOT in manifest.tsv)
 
 ## manifest.tsv
 Tab-separated UTF-8, one entry per line. Lines starting with # are comments.

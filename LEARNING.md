@@ -120,3 +120,20 @@ everywhere.
 **Gotcha:** keep `"$HERMIT_VERSION"` quoted when printing. Unquoted, a
 version with spaces or globs (`*`) would split or expand against the current
 directory instead of printing literally.
+
+---
+
+## Step 0b — document `engine/` in AGENTS.md
+
+**Built:** one line under `## Drive layout`: `engine/` holds a copy of
+`hermit` and `lib/` so a new machine can restore straight from the drive,
+and it is NOT listed in `manifest.tsv`.
+
+**Key concept:** spec before code. Writing the layout down first means
+`cmd_backup` step 2d cannot invent a different path or accidentally include
+`engine/` in the manifest.
+
+**Gotcha:** the manifest stores `$HOME`-relative files only
+(`Documents/...`), so `engine/` — which is program code on the drive, not
+user data — must stay out of it, or `restore` would copy `hermit` itself
+into `$HOME`.
