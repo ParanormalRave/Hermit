@@ -106,3 +106,17 @@ agreed scope, and recording it as `f` or `d` would restore the wrong thing.
 Skipping with a warning keeps v0.1 inside its safety rules.
 
 **When:** implement this in `cmd_backup`; not before.
+
+---
+
+## Step 0a — HERMIT_VERSION to 0.1.0-dev
+
+**Built:** one-line change in `hermit`: `HERMIT_VERSION="0.1.0-dev"`.
+
+**Key concept:** single source of truth for the version — `--version` and
+`meta.env` will both read this variable, so changing it here changes it
+everywhere.
+
+**Gotcha:** keep `"$HERMIT_VERSION"` quoted when printing. Unquoted, a
+version with spaces or globs (`*`) would split or expand against the current
+directory instead of printing literally.

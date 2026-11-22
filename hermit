@@ -2,7 +2,7 @@
 # hermit - save a user's home folders to a drive, and put them back later.
 set -euo pipefail
 
-HERMIT_VERSION="0.1.0"
+HERMIT_VERSION="0.1.0-dev"
 
 usage() {
   cat <<'EOF'
