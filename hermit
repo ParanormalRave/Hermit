@@ -4,6 +4,18 @@ set -euo pipefail
 
 HERMIT_VERSION="0.1.0-dev"
 
+HERMIT_SCRIPT="$(readlink -f "${BASH_SOURCE[0]}")"
+HERMIT_DIR="$(dirname "$HERMIT_SCRIPT")"
+# echo "DEBUG HERMIT_DIR=$HERMIT_DIR" >&2 used for outputs
+for lib in common paths manifest; do
+  if [ ! -r "$HERMIT_DIR/lib/$lib.sh" ]; then
+    echo "hermit: missing library: $HERMIT_DIR/lib/$lib.sh" >&2
+    exit 1
+  fi
+  # shellcheck source=/dev/null
+  . "$HERMIT_DIR/lib/$lib.sh"
+done
+
 usage() {
   cat <<'EOF'
 Usage: hermit <command> [options]
