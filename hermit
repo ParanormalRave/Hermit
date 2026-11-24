@@ -39,7 +39,7 @@ main() {
     -h | --help | help)
       usage
       ;;
-    -V | --version)
+    -V | --version | version)
       printf 'hermit %s\n' "$HERMIT_VERSION"
       ;;
     '')
