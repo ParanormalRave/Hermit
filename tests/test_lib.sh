@@ -5,17 +5,44 @@ set -uo pipefail
 REPO=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 FAKE_HOME=$(mktemp -d)
 export HOME=$FAKE_HOME
-cleanup() {
-  case "$FAKE_HOME" in
-    /tmp/*) rm -r -- "$FAKE_HOME" ;;
-    *) printf 'refusing to remove %s\n' "$FAKE_HOME" >&2 ;;
+safe_to_remove() {
+  case "$1" in
+    *..*)    return 1 ;;
+    /tmp/?*) return 0 ;;
+    *)       return 1 ;;
   esac
+}
+
+cleanup() {
+  if safe_to_remove "$FAKE_HOME"; then
+    rm -r -- "$FAKE_HOME"
+  else
+    printf 'refusing to remove %s\n' "$FAKE_HOME" >&2
+  fi
 }
 trap cleanup EXIT
 
 fails=0
 pass() { printf 'PASS %s\n' "$1"; }
 fail() { printf 'FAIL %s\n' "$1"; fails=$((fails + 1)); }
+
+check_guard() {
+  local expected=$1 value=$2
+  local got=refused
+  if safe_to_remove "$value"; then got=allowed; fi
+  if [ "$got" = "$expected" ]; then
+    pass "guard $expected [$value]"
+  else
+    fail "guard $expected [$value] (got $got)"
+  fi
+}
+
+check_guard allowed "/tmp/tmp.AbC123"
+check_guard refused "/tmp/"
+check_guard refused "/tmp/../etc"
+check_guard refused "/tmp/x/../../home"
+check_guard refused "/etc"
+check_guard refused ""
 
 # shellcheck source=/dev/null
 source "$REPO/lib/common.sh"
