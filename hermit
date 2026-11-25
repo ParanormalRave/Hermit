@@ -52,8 +52,8 @@ cmd_backup() {
      local answer=""
       printf '[hermit] %s already exists. Overwrite? [y/N] ' "$dest" >&2
       read -r answer || answer=n
-      case "$answer" in 
-      y | Y | yes | YES) info "overwriting $dest" ;; 
+    case "$answer" in 
+    y | Y | yes | YES) info "overwriting $dest" ;; 
       *)
         warn "cancelled, nothing changed"
         exit 1
