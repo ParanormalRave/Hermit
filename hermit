@@ -77,7 +77,18 @@ cmd_backup() {
   fi
   info "will save: ${found[*]}"
 
-  info "preflight ok: $drive"
+    info "will save: ${found[*]}"
+
+  local files_dir="$dest/files"
+  mkdir -p "$files_dir"
+
+  for folder in "${found[@]}"; do
+    info "copying $folder"
+    rsync -rpt --no-links "$HOME/$folder/" "$files_dir/$folder/" ||
+      error "rsync failed for $folder"
+  done
+
+  info "backup copied to $dest"
 }
 
 cmd_restore() {
