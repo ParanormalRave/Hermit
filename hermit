@@ -3,6 +3,7 @@
 set -euo pipefail
 
 HERMIT_VERSION="0.1.0-dev"
+BACKUP_DIRS=(Documents Downloads Desktop Pictures Videos Music)
 
 HERMIT_SCRIPT="$(readlink -f "${BASH_SOURCE[0]}")"
 HERMIT_DIR="$(dirname "$HERMIT_SCRIPT")"
@@ -60,6 +61,21 @@ cmd_backup() {
         ;;
     esac
   fi
+
+    local folder
+  local -a found=()
+  for folder in "${BACKUP_DIRS[@]}"; do
+    if [ -d "$HOME/$folder" ] && [ ! -L "$HOME/$folder" ]; then
+      found+=("$folder")
+    else
+      info "skipping $folder (missing or a symlink)"
+    fi
+  done
+
+  if [ "${#found[@]}" -eq 0 ]; then
+    error "none of the standard folders exist under $HOME"
+  fi
+  info "will save: ${found[*]}"
 
   info "preflight ok: $drive"
 }
