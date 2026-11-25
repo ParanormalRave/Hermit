@@ -46,6 +46,19 @@ check_guard refused ""
 
 # shellcheck source=/dev/null
 source "$REPO/lib/common.sh"
+
+if (require_cmd bash) 2>/dev/null; then
+  pass "require_cmd finds bash"
+else
+  fail "require_cmd finds bash"
+fi
+
+if (require_cmd no-such-command-xyz) 2>/dev/null; then
+  fail "require_cmd rejects a missing command"
+else
+  pass "require_cmd rejects a missing command"
+fi
+
 # shellcheck source=/dev/null
 source "$REPO/lib/paths.sh"
 # shellcheck source=/dev/null

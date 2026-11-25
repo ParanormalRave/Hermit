@@ -5,3 +5,7 @@
 info()  { printf '[hermit] %s\n' "$*" >&2; }
 warn()  { printf '[hermit] WARN: %s\n' "$*" >&2; }
 error() { printf '[hermit] ERROR: %s\n' "$*" >&2; exit 1; }
+
+require_cmd() {
+  command -v "$1" >/dev/null 2>&1 || error "required command not found: $1"
+}
