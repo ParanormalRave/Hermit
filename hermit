@@ -5,7 +5,7 @@ set -euo pipefail
 HERMIT_VERSION="0.1.0-dev"
 
 HERMIT_SCRIPT="$(readlink -f "${BASH_SOURCE[0]}")"
-HERMIT_DIR="$(dirname "$HERMIT_SCRIPT")"x
+HERMIT_DIR="$(dirname "$HERMIT_SCRIPT")"
 for lib in common paths manifest; do
   if [ ! -r "$HERMIT_DIR/lib/$lib.sh" ]; then
     echo "hermit: missing library: $HERMIT_DIR/lib/$lib.sh" >&2
@@ -30,7 +30,24 @@ EOF
 }
 
 cmd_backup() {
-  printf 'TODO: backup %s\n' "${*:-<no drive given>}" >&2
+  local drive=${1:-}
+
+  if [ -z "$drive" ]; then
+    warn "missing drive path"
+    usage >&2
+    exit 2
+  fi
+
+  require_cmd rsync
+
+  if [ ! -d "$drive" ]; then
+    error "not a folder: $drive"
+  fi
+  if [ ! -w "$drive" ]; then
+    error "not writable: $drive"
+  fi
+
+  info "preflight ok: $drive"
 }
 
 cmd_restore() {
