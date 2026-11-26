@@ -100,6 +100,9 @@ cmd_backup() {
   rsync -rptR --no-links "${progress[@]}" "${sources[@]}" "$files_dir/" ||
     error "rsync failed"
 
+    manifest_build "$files_dir" "$dest/manifest.tsv" ||
+    error "could not write manifest"
+
   info "backup copied to $dest (skipped $skipped non-regular items)"
 }
 
