@@ -75,9 +75,7 @@ cmd_backup() {
   if [ "${#found[@]}" -eq 0 ]; then
     error "none of the standard folders exist under $HOME"
   fi
-  info "will save: ${found[*]}"
-
-    info "will save: ${found[*]}"
+  info "will save: ${found[*]}"x  
 
   local files_dir="$dest/files"
   mkdir -p "$files_dir"
