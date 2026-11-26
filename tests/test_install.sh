@@ -85,5 +85,42 @@ OUT=$(env HOME="$H6" HERMIT_REPO="$REPO" HERMIT_REF=no-such-version bash "$INSTA
 RC=$?
 if [ "$RC" -ne 0 ]; then pass "an unknown HERMIT_REF fails instead of installing something else"; else fail "an unknown HERMIT_REF fails"; fi
 
+crab_file="$REPO/assets/crab.txt"
+first_crab_line=$(grep -m1 -v '^[[:space:]]*$' "$crab_file")
+crab_width=$(awk '{ if (length($0) > m) m = length($0) } END { print m + 0 }' "$crab_file")
+
+# a wide terminal: the facts sit beside the crab, on the same lines
+H7="$WORK/h7"
+mkdir -p "$H7"
+OUT=$(env HOME="$H7" HERMIT_REPO="$REPO" HERMIT_CRAB=always HERMIT_COLS=200 bash "$INSTALL" 2>&1)
+if printf '%s\n' "$OUT" | grep -qF -- "$first_crab_line"; then pass "HERMIT_CRAB=always shows the crab"; else fail "HERMIT_CRAB=always shows the crab"; fi
+if printf '%s\n' "$OUT" | grep -qE "^.{$crab_width,}installed: hermit"; then pass "wide terminal: the facts sit beside the crab"; else fail "wide terminal: the facts sit beside the crab"; fi
+if printf '%s\n' "$OUT" | grep -qF -- 'command:   ~/.local/bin/hermit'; then pass "the command path is shown with ~"; else fail "the command path is shown with ~"; fi
+
+# a medium terminal: the crab fits, the facts go underneath
+H7B="$WORK/h7b"
+mkdir -p "$H7B"
+OUT=$(env HOME="$H7B" HERMIT_REPO="$REPO" HERMIT_CRAB=always HERMIT_COLS=$((crab_width + 4)) bash "$INSTALL" 2>&1)
+if printf '%s\n' "$OUT" | grep -qF -- "$first_crab_line"; then pass "medium terminal: the crab is shown"; else fail "medium terminal: the crab is shown"; fi
+if printf '%s\n' "$OUT" | grep -qE "^.{$crab_width,}installed: hermit"; then fail "medium terminal: the facts go under the crab"; elif printf '%s\n' "$OUT" | grep -qF -- 'installed: hermit'; then pass "medium terminal: the facts go under the crab"; else fail "medium terminal: the facts go under the crab"; fi
+
+# a narrow terminal: no crab, plain text only
+H7C="$WORK/h7c"
+mkdir -p "$H7C"
+OUT=$(env HOME="$H7C" HERMIT_REPO="$REPO" HERMIT_CRAB=always HERMIT_COLS=40 bash "$INSTALL" 2>&1)
+if printf '%s\n' "$OUT" | grep -qF -- "$first_crab_line"; then fail "narrow terminal: no crab"; else pass "narrow terminal: no crab"; fi
+if printf '%s\n' "$OUT" | grep -qF -- 'installed: hermit'; then pass "narrow terminal: still says what was installed"; else fail "narrow terminal: still says what was installed"; fi
+
+H8="$WORK/h8"
+mkdir -p "$H8"
+OUT=$(env HOME="$H8" HERMIT_REPO="$REPO" bash "$INSTALL" 2>&1)
+if printf '%s\n' "$OUT" | grep -qF -- "$first_crab_line"; then fail "no crab when output is not a terminal"; else pass "no crab when output is not a terminal"; fi
+if printf '%s\n' "$OUT" | grep -qF -- 'installed: hermit'; then pass "plain output still says what was installed"; else fail "plain output still says what was installed"; fi
+
+H9="$WORK/h9"
+mkdir -p "$H9"
+OUT=$(env HOME="$H9" HERMIT_REPO="$REPO" HERMIT_CRAB=never bash "$INSTALL" 2>&1)
+if printf '%s\n' "$OUT" | grep -qF -- "$first_crab_line"; then fail "HERMIT_CRAB=never hides the crab"; else pass "HERMIT_CRAB=never hides the crab"; fi
+
 printf '\n%d failure(s)\n' "$fails"
 [ "$fails" -eq 0 ]
