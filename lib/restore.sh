@@ -88,10 +88,20 @@ _inside_home() {
 # restore_apply BACKUP_DIR
 # Carries out restore_plan: creates folders and copies files. Never overwrites.
 # Returns EX_PARTIAL if anything was refused or failed.
+# Folder modes from the manifest are applied last, deepest first, and only to
+# folders this run created.
 restore_apply() {
   local backup=${1:-}
-  local action type rel target
+  local action type rel target mode i
   local n_dir=0 n_copy=0 n_skip=0 n_fail=0
+  local -A modes=()
+  local -a made=()
+
+  while IFS=$'\t' read -r type rel _ mode; do
+    if [ "$type" = d ]; then
+      modes[$rel]=$mode
+    fi
+  done < <(manifest_read "$backup/manifest.tsv")
 
   while IFS=$'\t' read -r action type rel; do
     case "$action" in
@@ -116,6 +126,7 @@ restore_apply() {
     if [ "$action" = mkdir ]; then
       if mkdir -p -- "$target"; then
         n_dir=$(( n_dir + 1 ))
+        made+=("$rel")
       else
         warn "could not create folder: $rel"
         n_fail=$(( n_fail + 1 ))
@@ -133,6 +144,18 @@ restore_apply() {
       fi
     fi
   done < <(restore_plan "$backup")
+
+  # Modes last, deepest first: a read-only folder must not block its own files.
+  for (( i = ${#made[@]} - 1; i >= 0; i-- )); do
+    rel=${made[$i]}
+    mode=${modes[$rel]:-}
+    [ -n "$mode" ] || continue
+    target=$(home_abs "$rel") || continue
+    if ! chmod "$mode" "$target"; then
+      warn "could not set mode $mode on: $rel"
+      n_fail=$(( n_fail + 1 ))
+    fi
+  done
 
   if [ "$n_fail" -eq 0 ]; then
     ok "restored $n_copy file(s), created $n_dir folder(s), skipped $n_skip, failed $n_fail"

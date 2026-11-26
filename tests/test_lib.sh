@@ -405,6 +405,28 @@ if [ "$msg" = "[hermit] WARN: careful" ]; then pass "no color when output is not
 msg=$( ( HERMIT_COLOR=always info "plain" ) 2>&1 )
 if [ "$msg" = "[hermit] plain" ]; then pass "info stays uncolored"; else fail "info stays uncolored"; fi
 
+AB3="$FAKE_HOME/modes_backup"
+AH3="$FAKE_HOME/modes_home"
+mkdir -p "$AB3/files/Locked" "$AB3/files/Private" "$AB3/files/Existing" "$AH3/Existing"
+echo inside > "$AB3/files/Locked/f.txt"
+manifest_init "$AB3/manifest.tsv"
+manifest_add "$AB3/manifest.tsv" d Locked 0 555
+manifest_add "$AB3/manifest.tsv" f Locked/f.txt 7 644
+manifest_add "$AB3/manifest.tsv" d Private 0 750
+manifest_add "$AB3/manifest.tsv" d Existing 0 700
+chmod 755 "$AH3/Existing"
+
+( HOME="$AH3"; restore_apply "$AB3" ) >/dev/null 2>&1
+code=$?
+
+if [ "$(cat "$AH3/Locked/f.txt" 2>/dev/null)" = "inside" ]; then pass "a read-only folder still gets its files"; else fail "a read-only folder still gets its files"; fi
+if [ "$(stat -c %a "$AH3/Locked" 2>/dev/null)" = "555" ]; then pass "a created folder gets its recorded mode (555)"; else fail "a created folder gets its recorded mode (555)"; fi
+if [ "$(stat -c %a "$AH3/Private" 2>/dev/null)" = "750" ]; then pass "a created folder gets its recorded mode (750)"; else fail "a created folder gets its recorded mode (750)"; fi
+if [ "$(stat -c %a "$AH3/Existing")" = "755" ]; then pass "an existing folder keeps its mode"; else fail "an existing folder keeps its mode"; fi
+if [ "$code" -eq 0 ]; then pass "restore_apply exits 0 when modes are applied"; else fail "restore_apply exits 0 when modes are applied (got $code)"; fi
+
+chmod -R u+w "$AH3"
+
 # ---- add new tests ABOVE this line ----
 printf '\n%d failure(s)\n' "$fails"
 [ "$fails" -eq 0 ]
