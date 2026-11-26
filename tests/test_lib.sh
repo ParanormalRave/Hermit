@@ -242,9 +242,6 @@ else
   fail "manifest_build lists a parent before its child"
 fi
 
-printf '\n%d failure(s)\n' "$fails"
-[ "$fails" -eq 0 ]
-
 META_OUT="$FAKE_HOME/meta.env"
 meta_write "$META_OUT" "0.1.0-test" "tester" "/home/tester" 2>/dev/null
 
@@ -267,3 +264,6 @@ if meta_write "$META_OUT" "x" $'bad\nuser' "/h" 2>/dev/null; then
 else
   pass "meta_write rejects a newline in a value"
 fi
+
+printf '\n%d failure(s)\n' "$fails"
+[ "$fails" -eq 0 ]
