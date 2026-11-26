@@ -93,7 +93,7 @@ cmd_backup() {
 
   local -a progress=(--info=nonreg0)
   if [ -t 1 ]; then
-    progress=(--info=progress2,nonreg0)
+    progress=("--info=progress2,nonreg0")
   fi
 
   info "copying: ${found[*]}"
