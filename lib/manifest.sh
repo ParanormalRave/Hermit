@@ -144,3 +144,21 @@ manifest_build() {
 
   info "manifest: $added entries, $rejected skipped"
 }
+
+meta_write() {
+  local file=${1:-} version=${2:-} user=${3:-} home=${4:-}
+  local now
+
+  [ -n "$file" ] || return 1
+  case "$version$user$home" in
+    *$'\n'*) return 1 ;;
+  esac
+
+  now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  {
+    printf 'HERMIT_VERSION=%s\n' "$version"
+    printf 'BACKUP_DATE=%s\n' "$now"
+    printf 'SOURCE_USER=%s\n' "$user"
+    printf 'SOURCE_HOME=%s\n' "$home"
+  } > "$file"
+}

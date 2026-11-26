@@ -244,3 +244,26 @@ fi
 
 printf '\n%d failure(s)\n' "$fails"
 [ "$fails" -eq 0 ]
+
+META_OUT="$FAKE_HOME/meta.env"
+meta_write "$META_OUT" "0.1.0-test" "tester" "/home/tester" 2>/dev/null
+
+if grep -qx 'HERMIT_VERSION=0.1.0-test' "$META_OUT" 2>/dev/null &&
+  grep -qx 'SOURCE_USER=tester' "$META_OUT" &&
+  grep -qx 'SOURCE_HOME=/home/tester' "$META_OUT"; then
+  pass "meta_write records version, user and home"
+else
+  fail "meta_write records version, user and home"
+fi
+
+if grep -qE '^BACKUP_DATE=[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$' "$META_OUT" 2>/dev/null; then
+  pass "meta_write writes an ISO 8601 UTC date"
+else
+  fail "meta_write writes an ISO 8601 UTC date"
+fi
+
+if meta_write "$META_OUT" "x" $'bad\nuser' "/h" 2>/dev/null; then
+  fail "meta_write rejects a newline in a value"
+else
+  pass "meta_write rejects a newline in a value"
+fi

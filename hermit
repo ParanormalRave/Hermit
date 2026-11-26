@@ -108,6 +108,9 @@ cmd_backup() {
     manifest_build "$files_dir" "$dest/manifest.tsv" ||
     error "could not write manifest"
 
+    meta_write "$dest/meta.env" "$HERMIT_VERSION" "$(id -un)" "$HOME" ||
+    error "could not write meta.env"
+
   info "backup copied to $dest (skipped $skipped non-regular items)"
 }
 
