@@ -167,7 +167,11 @@ cmd_restore() {
     info "dry run: nothing will be changed"
   fi
   info "restore source: $backup"
-  restore_dry_run "$backup"
+    if [ "$dry_run" = true ]; then
+    restore_dry_run "$backup"
+  else
+    restore_apply "$backup" || exit "$?"
+  fi
 }
 
 main() {
