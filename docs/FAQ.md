@@ -60,4 +60,4 @@ See [EXIT-CODES](EXIT-CODES.md).
 
 ## Where do I ask questions or report bugs?
 
-Open an issue on the GitHub repository. Please include the Hermit version (`hermit --version`), your distribution, the command you ran, and the full output.
+Open an issue on the GitHub repository. Please include the Hermit version (`hermit --version`), your operating system (for example Ubuntu 24.04 or macOS 15), the command you ran, and the full output.

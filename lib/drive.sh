@@ -17,9 +17,12 @@ drive_probe() {
 
 # drive_free_bytes DIR
 # Prints the free space, in bytes, on the filesystem that holds DIR.
+# Uses -k (BSD and GNU agree on it) and multiplies by 1024, because -B1
+# is GNU-only and the capacity columns differ between the two.
 drive_free_bytes() {
   local dir=${1:-} free
-  free=$(df -P -B1 -- "$dir" 2>/dev/null | awk 'NR==2 {print $4}') || return 1
+  [ -n "$dir" ] || return 1
+  free=$(df -P -k "$dir" 2>/dev/null | awk 'NR==2 {print $4 * 1024}') || return 1
   case "$free" in '' | *[!0-9]*) return 1 ;; esac
   printf '%s\n' "$free"
 }
@@ -34,10 +37,40 @@ space_ok() {
 }
 
 # drive_fstype DIR
-# Prints the filesystem type under DIR (ext4, vfat, ...), or nothing if unknown.
+# Prints the filesystem type under DIR (ext4, apfs, ...), or nothing if unknown.
+# On Linux this asks findmnt. On macOS there is no findmnt, so we parse the
+# `mount` table (`<dev> on <mp> (<fstype>,...)`) and take the longest mount
+# point that holds DIR. Best effort: when nothing parses, stay silent.
 drive_fstype() {
-  command -v findmnt >/dev/null 2>&1 || return 0
-  findmnt -no FSTYPE -T "${1:-}" 2>/dev/null | head -n 1 || true
+  local dir=${1:-}
+  [ -n "$dir" ] || return 0
+  if command -v findmnt >/dev/null 2>&1; then
+    findmnt -no FSTYPE -T "$dir" 2>/dev/null | head -n 1 || true
+    return 0
+  fi
+  local canon line rest mp opts best="" best_len=-1
+  if canon=$(cd -P -- "$dir" 2>/dev/null && pwd -P); then
+    dir=$canon
+  fi
+  while IFS= read -r line || [ -n "$line" ]; do
+    case "$line" in *" on "*\(*\)*) ;; *) continue ;; esac
+    rest=${line#* on }
+    mp=${rest%% \(*}
+    opts=${rest#*(}
+    opts=${opts%%[,)]*}
+    [ -n "$mp" ] || continue
+    if [ "$mp" = / ]; then
+      case "$dir" in /*) ;; *) continue ;; esac
+    else
+      case "$dir" in "$mp" | "$mp"/*) ;; *) continue ;; esac
+    fi
+    if [ "${#mp}" -gt "$best_len" ]; then
+      best=$opts
+      best_len=${#mp}
+    fi
+  done < <(mount 2>/dev/null)
+  [ -n "$best" ] && printf '%s\n' "$best"
+  return 0
 }
 
 # fs_is_lossy FSTYPE
@@ -52,11 +85,13 @@ fs_is_lossy() {
 # backup_size_bytes DIR...
 # Prints the total size of the regular files under the given folders.
 # Symlinks are not counted, because the backup does not copy them.
+# find -print0 plus stat_size replaces the GNU-only -printf '%s'.
 backup_size_bytes() {
-  local size total=0
-  while IFS= read -r size; do
+  local path size total=0
+  while IFS= read -r -d '' path; do
+    size=$(stat_size "$path" 2>/dev/null) || continue
     total=$(( total + size ))
-  done < <(find "$@" -type f -printf '%s\n' 2>/dev/null)
+  done < <(find "$@" -type f -print0 2>/dev/null)
   printf '%s\n' "$total"
 }
 

@@ -6,11 +6,19 @@ REPO=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 FAKE_HOME=$(mktemp -d)
 export HOME=$FAKE_HOME
 safe_to_remove() {
+  # macOS mktemp lives under $TMPDIR (/var/folders/...), not /tmp.
+  local base=${TMPDIR:-/tmp}
+  base=${base%/}
   case "$1" in
-    *..*)    return 1 ;;
-    /tmp/?*) return 0 ;;
-    *)       return 1 ;;
+    *..*) return 1 ;;
+    /tmp/?* | "$base"/?*) return 0 ;;
+    *) return 1 ;;
   esac
+}
+
+# mtime_equal A B — true when neither file is older than the other.
+mtime_equal() {
+  [ ! "$1" -ot "$2" ] && [ ! "$1" -nt "$2" ]
 }
 
 cleanup() {
@@ -38,6 +46,7 @@ check_guard() {
 }
 
 check_guard allowed "/tmp/tmp.AbC123"
+check_guard allowed "$FAKE_HOME/probe"
 check_guard refused "/tmp/"
 check_guard refused "/tmp/../etc"
 check_guard refused "/tmp/x/../../home"
@@ -353,7 +362,7 @@ echo new > "$AB/files/Documents/new.txt"
 echo fresh > "$AB/files/Documents/have.txt"
 echo deep > "$AB/files/Documents/sub/deep.txt"
 echo evil > "$AB/files/Escape/x.txt"
-touch -d '2023-03-05 10:00:00' "$AB/files/Documents/new.txt"
+touch -t 202303051000.00 "$AB/files/Documents/new.txt"
 manifest_init "$AB/manifest.tsv"
 manifest_add "$AB/manifest.tsv" d Documents 0 755
 manifest_add "$AB/manifest.tsv" f Documents/new.txt 4 644
@@ -369,7 +378,7 @@ code=$?
 
 if [ "$(cat "$AH/Documents/new.txt" 2>/dev/null)" = "new" ]; then pass "restore_apply copies a missing file"; else fail "restore_apply copies a missing file"; fi
 if [ "$(cat "$AH/Documents/sub/deep.txt" 2>/dev/null)" = "deep" ]; then pass "restore_apply creates a folder and fills it"; else fail "restore_apply creates a folder and fills it"; fi
-if [ "$(stat -c %Y "$AH/Documents/new.txt" 2>/dev/null)" = "$(stat -c %Y "$AB/files/Documents/new.txt")" ]; then pass "restore_apply keeps the modification time"; else fail "restore_apply keeps the modification time"; fi
+if mtime_equal "$AH/Documents/new.txt" "$AB/files/Documents/new.txt"; then pass "restore_apply keeps the modification time"; else fail "restore_apply keeps the modification time"; fi
 if [ "$(cat "$AH/Documents/have.txt")" = "old" ]; then pass "restore_apply never overwrites an existing file"; else fail "restore_apply never overwrites an existing file"; fi
 if [ ! -e "$OUTSIDE/x.txt" ]; then pass "restore_apply refuses to write through a symlink out of home"; else fail "restore_apply refuses to write through a symlink out of home"; fi
 if [ "$code" -eq 6 ]; then pass "restore_apply exits 6 when something was refused"; else fail "restore_apply exits 6 when something was refused (got $code)"; fi
@@ -422,9 +431,9 @@ chmod 755 "$AH3/Existing"
 code=$?
 
 if [ "$(cat "$AH3/Locked/f.txt" 2>/dev/null)" = "inside" ]; then pass "a read-only folder still gets its files"; else fail "a read-only folder still gets its files"; fi
-if [ "$(stat -c %a "$AH3/Locked" 2>/dev/null)" = "555" ]; then pass "a created folder gets its recorded mode (555)"; else fail "a created folder gets its recorded mode (555)"; fi
-if [ "$(stat -c %a "$AH3/Private" 2>/dev/null)" = "750" ]; then pass "a created folder gets its recorded mode (750)"; else fail "a created folder gets its recorded mode (750)"; fi
-if [ "$(stat -c %a "$AH3/Existing")" = "755" ]; then pass "an existing folder keeps its mode"; else fail "an existing folder keeps its mode"; fi
+if [ "$(stat_mode "$AH3/Locked" 2>/dev/null)" = "555" ]; then pass "a created folder gets its recorded mode (555)"; else fail "a created folder gets its recorded mode (555)"; fi
+if [ "$(stat_mode "$AH3/Private" 2>/dev/null)" = "750" ]; then pass "a created folder gets its recorded mode (750)"; else fail "a created folder gets its recorded mode (750)"; fi
+if [ "$(stat_mode "$AH3/Existing")" = "755" ]; then pass "an existing folder keeps its mode"; else fail "an existing folder keeps its mode"; fi
 if [ "$code" -eq 0 ]; then pass "restore_apply exits 0 when modes are applied"; else fail "restore_apply exits 0 when modes are applied (got $code)"; fi
 
 chmod -R u+w "$AH3"
@@ -483,6 +492,87 @@ check_val "rsync exit 23 is a partial backup" 6 "$(rsync_exit_to_hermit 23)"
 check_val "rsync exit 11 is a drive problem" 3 "$(rsync_exit_to_hermit 11)"
 check_val "rsync exit 12 is a drive problem" 3 "$(rsync_exit_to_hermit 12)"
 check_val "an unknown rsync exit is a plain failure" 1 "$(rsync_exit_to_hermit 5)"
+
+# ---- _canonical probes (portable realpath -m replacement) ----
+CN_HOME="$FAKE_HOME/canon_home"
+CN_OUT="$FAKE_HOME/canon_outside"
+mkdir -p "$CN_HOME/real/sub" "$CN_OUT"
+ln -s "$CN_HOME/real" "$CN_HOME/link"
+ln -s ../canon_outside "$CN_HOME/esc"
+# macOS links /var to /private/var, so compare against the physical base.
+CN_PHYS=$(cd -P -- "$FAKE_HOME" 2>/dev/null && pwd -P)
+
+if [ "$(_canonical "$CN_HOME/link/sub/missing")" = "$CN_PHYS/canon_home/real/sub/missing" ]; then
+  pass "_canonical follows a symlinked folder"
+else
+  fail "_canonical follows a symlinked folder (got $(_canonical "$CN_HOME/link/sub/missing"))"
+fi
+
+if [ "$(_canonical "$CN_HOME/esc/x.txt")" = "$CN_PHYS/canon_outside/x.txt" ]; then
+  pass "_canonical resolves a relative link containing dot-dot"
+else
+  fail "_canonical resolves a relative link containing dot-dot (got $(_canonical "$CN_HOME/esc/x.txt"))"
+fi
+
+if [ "$(_canonical "$CN_HOME/real/sub")" = "$CN_PHYS/canon_home/real/sub" ]; then
+  pass "_canonical leaves a plain path alone"
+else
+  fail "_canonical leaves a plain path alone (got $(_canonical "$CN_HOME/real/sub"))"
+fi
+
+if [ "$(_canonical "$CN_HOME/nope/deep/file")" = "$CN_PHYS/canon_home/nope/deep/file" ]; then
+  pass "_canonical returns a missing path under an existing home"
+else
+  fail "_canonical returns a missing path under an existing home (got $(_canonical "$CN_HOME/nope/deep/file"))"
+fi
+
+if ( HOME="$CN_HOME"; _inside_home "$CN_HOME/esc/x.txt" ); then
+  fail "_inside_home refuses a path that escapes through a symlink"
+else
+  pass "_inside_home refuses a path that escapes through a symlink"
+fi
+
+if ( HOME="$CN_HOME"; _inside_home "$CN_HOME/real/new.txt" ); then
+  pass "_inside_home allows a path inside home"
+else
+  fail "_inside_home allows a path inside home"
+fi
+
+ABX="$FAKE_HOME/apply_esc"
+AHX="$FAKE_HOME/apply_eschome"
+OUTX="$FAKE_HOME/apply_escout"
+mkdir -p "$ABX/files/Route" "$AHX" "$OUTX"
+echo evil > "$ABX/files/Route/x.txt"
+manifest_init "$ABX/manifest.tsv"
+manifest_add "$ABX/manifest.tsv" f Route/x.txt 5 644
+ln -s ../apply_escout "$AHX/Route"
+( HOME="$AHX"; restore_apply "$ABX" ) >/dev/null 2>&1
+code=$?
+if [ "$code" -eq 6 ]; then
+  pass "restore_apply exits 6 on a relative-link escape"
+else
+  fail "restore_apply exits 6 on a relative-link escape (got $code)"
+fi
+if [ -z "$(ls -A "$OUTX")" ] && [ -L "$AHX/Route" ]; then
+  pass "nothing is written through the escape link"
+else
+  fail "nothing is written through the escape link"
+fi
+
+ABH="$FAKE_HOME/alias_backup"
+mkdir -p "$ABH/files/Documents" "$FAKE_HOME/realhome"
+ln -s "$FAKE_HOME/realhome" "$FAKE_HOME/homealias"
+echo hi > "$ABH/files/Documents/a.txt"
+manifest_init "$ABH/manifest.tsv"
+manifest_add "$ABH/manifest.tsv" d Documents 0 755
+manifest_add "$ABH/manifest.tsv" f Documents/a.txt 3 644
+( HOME="$FAKE_HOME/homealias"; restore_apply "$ABH" ) >/dev/null 2>&1
+code=$?
+if [ "$code" -eq 0 ] && [ "$(cat "$FAKE_HOME/realhome/Documents/a.txt" 2>/dev/null)" = "hi" ]; then
+  pass "restore works when HOME itself is reached through a symlink"
+else
+  fail "restore works when HOME itself is reached through a symlink (got $code)"
+fi
 
 # ---- add new tests ABOVE this line ----
 printf '\n%d failure(s)\n' "$fails"

@@ -41,3 +41,21 @@ error() { die "$EX_FAIL" "$@"; }
 require_cmd() {
   command -v "$1" >/dev/null 2>&1 || die "$EX_DEPENDENCY" "required command not found: $1"
 }
+
+# stat_mode FILE
+# Prints the octal mode of FILE (e.g. 644). Tries GNU stat first, then BSD.
+stat_mode() {
+  local file=${1:-} mode
+  [ -n "$file" ] || return 1
+  mode=$(stat -c %a -- "$file" 2>/dev/null) && printf '%s\n' "$mode" && return 0
+  stat -f %Lp -- "$file" 2>/dev/null
+}
+
+# stat_size FILE
+# Prints the size of FILE in bytes. Tries GNU stat first, then BSD.
+stat_size() {
+  local file=${1:-} size
+  [ -n "$file" ] || return 1
+  size=$(stat -c %s -- "$file" 2>/dev/null) && printf '%s\n' "$size" && return 0
+  stat -f %z -- "$file" 2>/dev/null
+}

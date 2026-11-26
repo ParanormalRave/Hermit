@@ -76,12 +76,83 @@ restore_dry_run() {
     "$n_copy" "$n_dir" "$n_skip"
 }
 
+# _collapse PATH
+# Print absolute PATH with every "." and ".." resolved textually.
+# Needed because a symlink target can contain "..", which would fool a
+# plain prefix check ("$HOME/../outside" starts with "$HOME/").
+_collapse() {
+  local path=${1:-}
+  local IFS=/
+  local -a parts=() out=()
+  local part
+  case "$path" in /*) ;; *) return 1 ;; esac
+  read -r -a parts <<< "$path"
+  for part in "${parts[@]}"; do
+    case "$part" in
+      '' | .) continue ;;
+      ..)
+        if [ "${#out[@]}" -gt 0 ]; then
+          unset "out[$((${#out[@]} - 1))]"
+        fi
+        ;;
+      *) out+=("$part") ;;
+    esac
+  done
+  if [ "${#out[@]}" -eq 0 ]; then
+    printf '/\n'
+  else
+    printf '/%s\n' "${out[*]}"
+  fi
+}
+
+# _canonical PATH
+# Print PATH with every symlink resolved, without requiring the whole path
+# to exist (a portable `realpath -m`). Walks down to the nearest existing
+# ancestor, chases symlinks with plain readlink, then asks the shell for
+# the physical directory with cd -P/pwd -P.
+_canonical() {
+  local path=${1:-}
+  local head tail base dir link
+  [ -n "$path" ] || return 1
+  case "$path" in
+    /*) ;;
+    *) path="$PWD/$path" ;;
+  esac
+  head=$path
+  tail=""
+  while [ ! -e "$head" ] && [ ! -L "$head" ]; do
+    [ "$head" = / ] && return 1
+    base=${head##*/}
+    tail="/$base$tail"
+    head=${head%/*}
+    [ -n "$head" ] || head=/
+  done
+  while [ -L "$head" ]; do
+    link=$(readlink "$head") || return 1
+    case "$link" in
+      /*) head=$link ;;
+      *) head=${head%/*}/$link ;;
+    esac
+    head=$(_collapse "$head") || return 1
+  done
+  if [ -d "$head" ]; then
+    dir=$(cd -P -- "$head" 2>/dev/null && pwd -P) || return 1
+    printf '%s\n' "$dir$tail"
+  else
+    base=${head##*/}
+    dir=${head%/*}
+    [ -n "$dir" ] || dir=/
+    dir=$(cd -P -- "$dir" 2>/dev/null && pwd -P) || return 1
+    printf '%s\n' "$dir/$base$tail"
+  fi
+}
+
 # _inside_home TARGET
 # True if TARGET, after following every symlink on its path, is under $HOME.
 _inside_home() {
   local target=${1:-} home_real real
-  home_real=$(realpath -- "$HOME") || return 1
-  real=$(realpath -m -- "$target") || return 1
+  home_real=$(_canonical "$HOME") || return 1
+  real=$(_canonical "$target") || return 1
   [[ "$real" == "$home_real"/* ]]
 }
 
@@ -92,14 +163,17 @@ _inside_home() {
 # folders this run created.
 restore_apply() {
   local backup=${1:-}
-  local action type rel target mode i
+  local action type rel target mode i j
   local n_dir=0 n_copy=0 n_skip=0 n_fail=0
-  local -A modes=()
-  local -a made=()
+  # Parallel indexed arrays (bash 3.2 has no assoc arrays): mode_rels[k]
+  # holds the folder path for the mode in mode_vals[k].
+  local -a mode_rels=() mode_vals=()
+  local -a made=() made_modes=()
 
   while IFS=$'\t' read -r type rel _ mode; do
     if [ "$type" = d ]; then
-      modes[$rel]=$mode
+      mode_rels+=("$rel")
+      mode_vals+=("$mode")
     fi
   done < <(manifest_read "$backup/manifest.tsv")
 
@@ -127,6 +201,14 @@ restore_apply() {
       if mkdir -p -- "$target"; then
         n_dir=$(( n_dir + 1 ))
         made+=("$rel")
+        mode=""
+        for (( j = 0; j < ${#mode_rels[@]}; j++ )); do
+          if [ "${mode_rels[$j]}" = "$rel" ]; then
+            mode=${mode_vals[$j]}
+            break
+          fi
+        done
+        made_modes+=("$mode")
       else
         warn "could not create folder: $rel"
         n_fail=$(( n_fail + 1 ))
@@ -148,7 +230,7 @@ restore_apply() {
   # Modes last, deepest first: a read-only folder must not block its own files.
   for (( i = ${#made[@]} - 1; i >= 0; i-- )); do
     rel=${made[$i]}
-    mode=${modes[$rel]:-}
+    mode=${made_modes[$i]}
     [ -n "$mode" ] || continue
     target=$(home_abs "$rel") || continue
     if ! chmod "$mode" "$target"; then

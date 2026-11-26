@@ -119,28 +119,37 @@ manifest_read() {
 }
 
 
+# manifest_build DIR FILE
+# Walk DIR and write one manifest row per file and folder. find -print0
+# (plus stat helpers) replaces the GNU-only -printf, so names with spaces
+# survive and tabs/newlines are rejected by manifest_add as before.
+# find lists a folder before its children, which keeps parents first.
 manifest_build() {
   local dir=${1:-} file=${2:-}
-  local type rel size mode
+  local path rel type size mode
   local added=0 rejected=0
 
   [ -d "$dir" ] || return 1
+  dir=${dir%/}
   manifest_init "$file" || return 1
 
-  while IFS= read -r -d '' type &&
-    IFS= read -r -d '' rel &&
-    IFS= read -r -d '' size &&
-    IFS= read -r -d '' mode; do
-    if [ "$type" = d ]; then
+  while IFS= read -r -d '' path; do
+    rel=${path#"$dir"/}
+    if [ -d "$path" ]; then
+      type=d
       size=0
+    else
+      type=f
+      size=$(stat_size "$path" 2>/dev/null) || size=""
     fi
+    mode=$(stat_mode "$path" 2>/dev/null) || mode=""
     if manifest_add "$file" "$type" "$rel" "$size" "$mode"; then
       added=$(( added + 1 ))
     else
       warn "manifest: skipping unsupported name or mode: $rel"
       rejected=$(( rejected + 1 ))
     fi
-  done < <(find "$dir" -mindepth 1 \( -type f -o -type d \) -printf '%y\0%P\0%s\0%m\0')
+  done < <(find "$dir" -mindepth 1 \( -type f -o -type d \) -print0 2>/dev/null)
 
   info "manifest: $added entries, $rejected skipped"
 }

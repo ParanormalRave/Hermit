@@ -8,10 +8,13 @@ INSTALL="$REPO/install.sh"
 WORK=$(mktemp -d)
 
 safe_to_remove() {
+  # macOS mktemp lives under $TMPDIR (/var/folders/...), not /tmp.
+  local base=${TMPDIR:-/tmp}
+  base=${base%/}
   case "$1" in
-    *..*)    return 1 ;;
-    /tmp/?*) return 0 ;;
-    *)       return 1 ;;
+    *..*) return 1 ;;
+    /tmp/?* | "$base"/?*) return 0 ;;
+    *) return 1 ;;
   esac
 }
 
