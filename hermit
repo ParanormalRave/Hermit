@@ -48,6 +48,21 @@ cmd_backup() {
     error "not writable: $drive"
   fi
 
+  local folder
+  local -a found=()
+  for folder in "${BACKUP_DIRS[@]}"; do
+    if [ -d "$HOME/$folder" ] && [ ! -L "$HOME/$folder" ]; then
+      found+=("$folder")
+    else
+      info "skipping $folder (missing or a symlink)"
+    fi
+  done
+
+  if [ "${#found[@]}" -eq 0 ]; then
+    error "none of the standard folders exist under $HOME"
+  fi
+  info "will save: ${found[*]}"
+
   local dest="$drive/hermit-backup"
   if [ -e "$dest" ] || [ -L "$dest" ]; then
     local answer=""
@@ -66,21 +81,6 @@ cmd_backup() {
         ;;
     esac
   fi
-
-  local folder
-  local -a found=()
-  for folder in "${BACKUP_DIRS[@]}"; do
-    if [ -d "$HOME/$folder" ] && [ ! -L "$HOME/$folder" ]; then
-      found+=("$folder")
-    else
-      info "skipping $folder (missing or a symlink)"
-    fi
-  done
-
-  if [ "${#found[@]}" -eq 0 ]; then
-    error "none of the standard folders exist under $HOME"
-  fi
-  info "will save: ${found[*]}"
 
   local files_dir="$dest/files"
   local skipped=0
@@ -105,13 +105,25 @@ cmd_backup() {
   rsync -rptR --no-links "${progress[@]}" "${sources[@]}" "$files_dir/" ||
     error "rsync failed"
 
-    manifest_build "$files_dir" "$dest/manifest.tsv" ||
+  manifest_build "$files_dir" "$dest/manifest.tsv" ||
     error "could not write manifest"
 
-    meta_write "$dest/meta.env" "$HERMIT_VERSION" "$(id -un)" "$HOME" ||
+  meta_write "$dest/meta.env" "$HERMIT_VERSION" "$(id -un)" "$HOME" ||
     error "could not write meta.env"
 
-  info "backup copied to $dest (skipped $skipped non-regular items)"
+  local type size
+  local file_count=0 total_bytes=0 human
+  while IFS=$'\t' read -r type _ size _; do
+    if [ "$type" = f ]; then
+      file_count=$(( file_count + 1 ))
+      total_bytes=$(( total_bytes + size ))
+    fi
+  done < <(manifest_read "$dest/manifest.tsv")
+  human=$(numfmt --to=iec-i --suffix=B "$total_bytes" 2>/dev/null) || human="$total_bytes bytes"
+
+  info "saved ${#found[@]} folders (${found[*]}), $file_count files, $human"
+  info "skipped $skipped non-regular items"
+  info "backup complete: $dest"
 }
 
 cmd_restore() {
