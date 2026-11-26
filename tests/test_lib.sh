@@ -6,11 +6,19 @@ REPO=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 FAKE_HOME=$(mktemp -d)
 export HOME=$FAKE_HOME
 safe_to_remove() {
+  # macOS mktemp lives under $TMPDIR (/var/folders/...), not /tmp.
+  local base=${TMPDIR:-/tmp}
+  base=${base%/}
   case "$1" in
-    *..*)    return 1 ;;
-    /tmp/?*) return 0 ;;
-    *)       return 1 ;;
+    *..*) return 1 ;;
+    /tmp/?* | "$base"/?*) return 0 ;;
+    *) return 1 ;;
   esac
+}
+
+# mtime_equal A B — true when neither file is older than the other.
+mtime_equal() {
+  [ ! "$1" -ot "$2" ] && [ ! "$1" -nt "$2" ]
 }
 
 cleanup() {
@@ -38,6 +46,7 @@ check_guard() {
 }
 
 check_guard allowed "/tmp/tmp.AbC123"
+check_guard allowed "$FAKE_HOME/probe"
 check_guard refused "/tmp/"
 check_guard refused "/tmp/../etc"
 check_guard refused "/tmp/x/../../home"
@@ -353,7 +362,7 @@ echo new > "$AB/files/Documents/new.txt"
 echo fresh > "$AB/files/Documents/have.txt"
 echo deep > "$AB/files/Documents/sub/deep.txt"
 echo evil > "$AB/files/Escape/x.txt"
-touch -d '2023-03-05 10:00:00' "$AB/files/Documents/new.txt"
+touch -t 202303051000.00 "$AB/files/Documents/new.txt"
 manifest_init "$AB/manifest.tsv"
 manifest_add "$AB/manifest.tsv" d Documents 0 755
 manifest_add "$AB/manifest.tsv" f Documents/new.txt 4 644
@@ -369,7 +378,7 @@ code=$?
 
 if [ "$(cat "$AH/Documents/new.txt" 2>/dev/null)" = "new" ]; then pass "restore_apply copies a missing file"; else fail "restore_apply copies a missing file"; fi
 if [ "$(cat "$AH/Documents/sub/deep.txt" 2>/dev/null)" = "deep" ]; then pass "restore_apply creates a folder and fills it"; else fail "restore_apply creates a folder and fills it"; fi
-if [ "$(stat -c %Y "$AH/Documents/new.txt" 2>/dev/null)" = "$(stat -c %Y "$AB/files/Documents/new.txt")" ]; then pass "restore_apply keeps the modification time"; else fail "restore_apply keeps the modification time"; fi
+if mtime_equal "$AH/Documents/new.txt" "$AB/files/Documents/new.txt"; then pass "restore_apply keeps the modification time"; else fail "restore_apply keeps the modification time"; fi
 if [ "$(cat "$AH/Documents/have.txt")" = "old" ]; then pass "restore_apply never overwrites an existing file"; else fail "restore_apply never overwrites an existing file"; fi
 if [ ! -e "$OUTSIDE/x.txt" ]; then pass "restore_apply refuses to write through a symlink out of home"; else fail "restore_apply refuses to write through a symlink out of home"; fi
 if [ "$code" -eq 6 ]; then pass "restore_apply exits 6 when something was refused"; else fail "restore_apply exits 6 when something was refused (got $code)"; fi
@@ -422,9 +431,9 @@ chmod 755 "$AH3/Existing"
 code=$?
 
 if [ "$(cat "$AH3/Locked/f.txt" 2>/dev/null)" = "inside" ]; then pass "a read-only folder still gets its files"; else fail "a read-only folder still gets its files"; fi
-if [ "$(stat -c %a "$AH3/Locked" 2>/dev/null)" = "555" ]; then pass "a created folder gets its recorded mode (555)"; else fail "a created folder gets its recorded mode (555)"; fi
-if [ "$(stat -c %a "$AH3/Private" 2>/dev/null)" = "750" ]; then pass "a created folder gets its recorded mode (750)"; else fail "a created folder gets its recorded mode (750)"; fi
-if [ "$(stat -c %a "$AH3/Existing")" = "755" ]; then pass "an existing folder keeps its mode"; else fail "an existing folder keeps its mode"; fi
+if [ "$(stat_mode "$AH3/Locked" 2>/dev/null)" = "555" ]; then pass "a created folder gets its recorded mode (555)"; else fail "a created folder gets its recorded mode (555)"; fi
+if [ "$(stat_mode "$AH3/Private" 2>/dev/null)" = "750" ]; then pass "a created folder gets its recorded mode (750)"; else fail "a created folder gets its recorded mode (750)"; fi
+if [ "$(stat_mode "$AH3/Existing")" = "755" ]; then pass "an existing folder keeps its mode"; else fail "an existing folder keeps its mode"; fi
 if [ "$code" -eq 0 ]; then pass "restore_apply exits 0 when modes are applied"; else fail "restore_apply exits 0 when modes are applied (got $code)"; fi
 
 chmod -R u+w "$AH3"

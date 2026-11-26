@@ -8,11 +8,26 @@ HERMIT="$REPO/hermit"
 WORK=$(mktemp -d)
 
 safe_to_remove() {
+  # macOS mktemp lives under $TMPDIR (/var/folders/...), not /tmp.
+  local base=${TMPDIR:-/tmp}
+  base=${base%/}
   case "$1" in
-    *..*)    return 1 ;;
-    /tmp/?*) return 0 ;;
-    *)       return 1 ;;
+    *..*) return 1 ;;
+    /tmp/?* | "$base"/?*) return 0 ;;
+    *) return 1 ;;
   esac
+}
+
+# file_mode FILE — portable octal mode (GNU stat -c, else BSD stat -f).
+file_mode() {
+  local m
+  m=$(stat -c %a -- "$1" 2>/dev/null) && printf '%s\n' "$m" && return 0
+  stat -f %Lp -- "$1" 2>/dev/null
+}
+
+# mtime_equal A B — true when neither file is older than the other.
+mtime_equal() {
+  [ ! "$1" -ot "$2" ] && [ ! "$1" -nt "$2" ]
 }
 
 cleanup() {
@@ -64,7 +79,7 @@ echo "deep" > "$SRC/Documents/sub/deep/c.txt"
 echo "secret" > "$SRC/Documents/private/s.txt"
 chmod 600 "$SRC/Documents/private/s.txt"
 chmod 750 "$SRC/Documents/private"
-touch -d '2023-03-05 10:00:00' "$SRC/Documents/a.txt"
+touch -t 202303051000.00 "$SRC/Documents/a.txt"
 echo "pic" > "$SRC/Pictures/p.png"
 ln -s "$SRC/Documents/a.txt" "$SRC/Pictures/link"
 echo "vid" > "$SRC/Videos/ok.mp4"
@@ -92,9 +107,9 @@ run "$DST" "" restore "$DRIVE"
 check_rc "restore exits 0" "$RC" 0
 check "Documents restored identically (spaces, nesting, empty folder)" diff -r "$SRC/Documents" "$DST/Documents"
 check "empty folder came back" test -d "$DST/Documents/emptydir"
-check "modification time is preserved" test "$(stat -c %Y "$DST/Documents/a.txt")" = "$(stat -c %Y "$SRC/Documents/a.txt")"
-check "file mode 600 is preserved" test "$(stat -c %a "$DST/Documents/private/s.txt")" = 600
-check "folder mode 750 is applied" test "$(stat -c %a "$DST/Documents/private")" = 750
+check "modification time is preserved" mtime_equal "$DST/Documents/a.txt" "$SRC/Documents/a.txt"
+check "file mode 600 is preserved" test "$(file_mode "$DST/Documents/private/s.txt")" = 600
+check "folder mode 750 is applied" test "$(file_mode "$DST/Documents/private")" = 750
 check "Pictures: the regular file is restored" test -f "$DST/Pictures/p.png"
 check "Pictures: the symlink is not restored" test ! -e "$DST/Pictures/link" -a ! -L "$DST/Pictures/link"
 check "Videos: the normal file is restored" test -f "$DST/Videos/ok.mp4"
