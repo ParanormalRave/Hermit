@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Make sure the tools are there
+        run: |
+          command -v rsync >/dev/null || { sudo apt-get update && sudo apt-get install -y rsync; }
+          command -v shellcheck >/dev/null || { sudo apt-get update && sudo apt-get install -y shellcheck; }
+          rsync --version | head -n 1
+          shellcheck --version | head -n 2
+
+      - name: Syntax check
+        run: |
+          for f in hermit lib/*.sh tests/*.sh; do
+            bash -n "$f"
+          done
+
+      - name: ShellCheck
+        run: shellcheck -x hermit lib/*.sh tests/*.sh
+
+      - name: Unit tests
+        run: bash tests/test_lib.sh
+
+      - name: End-to-end tests
+        run: bash tests/test_v01.sh
