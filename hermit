@@ -75,18 +75,24 @@ cmd_backup() {
   if [ "${#found[@]}" -eq 0 ]; then
     error "none of the standard folders exist under $HOME"
   fi
-  info "will save: ${found[*]}"x  
-
+  info "will save: ${found[*]}"
   local files_dir="$dest/files"
+  local skipped=0
+  local path
   mkdir -p "$files_dir"
 
   for folder in "${found[@]}"; do
+    while IFS= read -r -d '' path; do
+      warn "skipping (not a regular file): $path"
+      skipped=$(( skipped + 1 ))
+    done < <(find "$HOME/$folder" ! -type f ! -type d -print0)
+
     info "copying $folder"
-    rsync -rpt --no-links "$HOME/$folder/" "$files_dir/$folder/" ||
+    rsync -rpt --no-links "$HOME/$folder/" "$files_dir/$folder/" >/dev/null ||
       error "rsync failed for $folder"
   done
 
-  info "backup copied to $dest"
+  info "backup copied to $dest (skipped $skipped non-regular items)"
 }
 
 cmd_restore() {
