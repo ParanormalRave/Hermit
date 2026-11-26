@@ -44,8 +44,9 @@ cmd_backup() {
    if [ ! -d "$drive" ]; then
     die "$EX_DRIVE" "not a folder: $drive"
   fi
-  if [ ! -w "$drive" ]; then
-    die "$EX_DRIVE" "not writable: $drive"
+
+  if ! drive_probe "$drive"; then
+    die "$EX_DRIVE" "cannot write to the drive (read-only, full or not permitted): $drive"
   fi
 
   local folder
@@ -62,6 +63,23 @@ cmd_backup() {
     error "none of the standard folders exist under $HOME"
   fi
   info "will save: ${found[*]}"
+
+  local fstype need free need_h free_h
+  local -a src_dirs=()
+  fstype=$(drive_fstype "$drive")
+  if fs_is_lossy "$fstype"; then
+    warn "this drive uses $fstype: Linux permissions are not kept on it, so restored files may get default modes"
+  fi
+  for folder in "${found[@]}"; do
+    src_dirs+=("$HOME/$folder")
+  done
+  need=$(backup_size_bytes "${src_dirs[@]}")
+  free=$(drive_free_bytes "$drive") || die "$EX_DRIVE" "cannot read the free space of: $drive"
+  if ! space_ok "$free" "$need"; then
+    need_h=$(numfmt --to=iec-i --suffix=B "$need" 2>/dev/null) || need_h="$need bytes"
+    free_h=$(numfmt --to=iec-i --suffix=B "$free" 2>/dev/null) || free_h="$free bytes"
+    die "$EX_SPACE" "not enough space on the drive: need about $need_h plus 5%, only $free_h free"
+  fi
 
   local dest="$drive/hermit-backup"
   if [ -e "$dest" ] || [ -L "$dest" ]; then
@@ -102,8 +120,16 @@ cmd_backup() {
   fi
 
   info "copying: ${found[*]}"
-  rsync -rptR --no-links "${progress[@]}" "${sources[@]}" "$files_dir/" ||
-    error "rsync failed"
+
+  local rsync_rc=0 hermit_rc
+  rsync -rptR --no-links "${progress[@]}" "${sources[@]}" "$files_dir/" || rsync_rc=$?
+  hermit_rc=$(rsync_exit_to_hermit "$rsync_rc")
+  case "$rsync_rc" in
+    0) ;;
+    24) warn "some files vanished while copying (changed or deleted meanwhile); the rest was saved" ;;
+    23) warn "some files could not be copied (unreadable?); this backup is partial" ;;
+    *) die "$hermit_rc" "rsync stopped (code $rsync_rc): is the drive still connected, and not full?" ;;
+  esac
 
   manifest_build "$files_dir" "$dest/manifest.tsv" ||
     error "could not write manifest"
@@ -123,7 +149,13 @@ cmd_backup() {
 
   info "saved ${#found[@]} folders (${found[*]}), $file_count files, $human"
   info "skipped $skipped non-regular items"
-  info "backup complete: $dest"
+
+    if [ "$hermit_rc" -eq 0 ]; then
+    ok "backup complete: $dest"
+  else
+    warn "backup finished with problems: $dest"
+    exit "$hermit_rc"
+  fi
 }
 
 cmd_restore() {
