@@ -194,9 +194,6 @@ test_home_abs_rejects_tab
 test_home_rel_rejects_tab
 test_valid_rel_regressions
 
-printf '\n%d failure(s)\n' "$fails"
-[ "$fails" -eq 0 ]
-
 
 BUILD_SRC="$FAKE_HOME/build_src"
 BUILD_OUT="$FAKE_HOME/built.tsv"
@@ -243,4 +240,7 @@ if [ "${docs_line:-99}" -lt "${sub_line:-0}" ]; then
   pass "manifest_build lists a parent before its child"
 else
   fail "manifest_build lists a parent before its child"
-fi  
+fi
+
+printf '\n%d failure(s)\n' "$fails"
+[ "$fails" -eq 0 ]
