@@ -2,7 +2,7 @@
 # hermit - save a user's home folders to a drive, and put them back later.
 set -euo pipefail
 
-HERMIT_VERSION="0.1.0"
+HERMIT_VERSION="0.1.1"
 BACKUP_DIRS=(Documents Downloads Desktop Pictures Videos Music)
 
 HERMIT_SCRIPT="$(readlink -f "${BASH_SOURCE[0]}")"
