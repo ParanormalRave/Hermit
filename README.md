@@ -78,7 +78,7 @@ More detail: [How it works](docs/HOW-IT-WORKS.md).
 
 ## Roadmap
 
-- [ ] **v0.1:** Files + manifest (backup and restore, dry-run)
+- [x] **v0.1:** Files + manifest (backup and restore, dry-run)
 - [ ] **v0.2:** Package list capture and reinstall (apt)
 - [ ] **v0.3:** App configs and dotfiles
 - [ ] **v0.4:** Username/path remapping
