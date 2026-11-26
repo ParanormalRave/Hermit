@@ -75,3 +75,69 @@ restore_dry_run() {
   printf 'dry run: would copy %d file(s), create %d folder(s), skip %d\n' \
     "$n_copy" "$n_dir" "$n_skip"
 }
+
+# _inside_home TARGET
+# True if TARGET, after following every symlink on its path, is under $HOME.
+_inside_home() {
+  local target=${1:-} home_real real
+  home_real=$(realpath -- "$HOME") || return 1
+  real=$(realpath -m -- "$target") || return 1
+  [[ "$real" == "$home_real"/* ]]
+}
+
+# restore_apply BACKUP_DIR
+# Carries out restore_plan: creates folders and copies files. Never overwrites.
+# Returns EX_PARTIAL if anything was refused or failed.
+restore_apply() {
+  local backup=${1:-}
+  local action type rel target
+  local n_dir=0 n_copy=0 n_skip=0 n_fail=0
+
+  while IFS=$'\t' read -r action type rel; do
+    case "$action" in
+      have-dir)    continue ;;
+      skip-exists) n_skip=$(( n_skip + 1 )); continue ;;
+      mkdir | copy) ;;
+      *)
+        warn "skipping ($action): $rel"
+        n_skip=$(( n_skip + 1 ))
+        continue
+        ;;
+    esac
+
+    target=$(home_abs "$rel") || { n_fail=$(( n_fail + 1 )); continue; }
+
+    if ! _inside_home "$target"; then
+      warn "refusing to write outside your home folder: $rel"
+      n_fail=$(( n_fail + 1 ))
+      continue
+    fi
+
+    if [ "$action" = mkdir ]; then
+      if mkdir -p -- "$target"; then
+        n_dir=$(( n_dir + 1 ))
+      else
+        warn "could not create folder: $rel"
+        n_fail=$(( n_fail + 1 ))
+      fi
+    else
+      if [ -e "$target" ] || [ -L "$target" ]; then
+        n_skip=$(( n_skip + 1 ))
+        continue
+      fi
+      if cp -p -- "$backup/files/$rel" "$target"; then
+        n_copy=$(( n_copy + 1 ))
+      else
+        warn "could not copy: $rel"
+        n_fail=$(( n_fail + 1 ))
+      fi
+    fi
+  done < <(restore_plan "$backup")
+
+  if [ "$n_fail" -eq 0 ]; then
+    ok "restored $n_copy file(s), created $n_dir folder(s), skipped $n_skip, failed $n_fail"
+  else
+    warn "restored $n_copy file(s), created $n_dir folder(s), skipped $n_skip, failed $n_fail"
+    return "$EX_PARTIAL"
+  fi
+}

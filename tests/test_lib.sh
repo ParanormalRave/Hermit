@@ -343,6 +343,68 @@ else
   fail "restore_plan changes nothing on disk"
 fi
 
+AB="$FAKE_HOME/apply_backup"
+AH="$FAKE_HOME/apply_home"
+OUTSIDE="$FAKE_HOME/outside"
+mkdir -p "$AB/files/Documents/sub" "$AB/files/Escape" "$AH/Documents" "$OUTSIDE"
+echo new > "$AB/files/Documents/new.txt"
+echo fresh > "$AB/files/Documents/have.txt"
+echo deep > "$AB/files/Documents/sub/deep.txt"
+echo evil > "$AB/files/Escape/x.txt"
+touch -d '2023-03-05 10:00:00' "$AB/files/Documents/new.txt"
+manifest_init "$AB/manifest.tsv"
+manifest_add "$AB/manifest.tsv" d Documents 0 755
+manifest_add "$AB/manifest.tsv" f Documents/new.txt 4 644
+manifest_add "$AB/manifest.tsv" f Documents/have.txt 6 644
+manifest_add "$AB/manifest.tsv" d Documents/sub 0 755
+manifest_add "$AB/manifest.tsv" f Documents/sub/deep.txt 5 644
+manifest_add "$AB/manifest.tsv" f Escape/x.txt 5 644
+echo old > "$AH/Documents/have.txt"
+ln -s "$OUTSIDE" "$AH/Escape"
+
+( HOME="$AH"; restore_apply "$AB" ) >/dev/null 2>&1
+code=$?
+
+if [ "$(cat "$AH/Documents/new.txt" 2>/dev/null)" = "new" ]; then pass "restore_apply copies a missing file"; else fail "restore_apply copies a missing file"; fi
+if [ "$(cat "$AH/Documents/sub/deep.txt" 2>/dev/null)" = "deep" ]; then pass "restore_apply creates a folder and fills it"; else fail "restore_apply creates a folder and fills it"; fi
+if [ "$(stat -c %Y "$AH/Documents/new.txt" 2>/dev/null)" = "$(stat -c %Y "$AB/files/Documents/new.txt")" ]; then pass "restore_apply keeps the modification time"; else fail "restore_apply keeps the modification time"; fi
+if [ "$(cat "$AH/Documents/have.txt")" = "old" ]; then pass "restore_apply never overwrites an existing file"; else fail "restore_apply never overwrites an existing file"; fi
+if [ ! -e "$OUTSIDE/x.txt" ]; then pass "restore_apply refuses to write through a symlink out of home"; else fail "restore_apply refuses to write through a symlink out of home"; fi
+if [ "$code" -eq 6 ]; then pass "restore_apply exits 6 when something was refused"; else fail "restore_apply exits 6 when something was refused (got $code)"; fi
+
+AB2="$FAKE_HOME/apply_backup2"
+AH2="$FAKE_HOME/apply_home2"
+mkdir -p "$AB2/files/Pictures" "$AH2"
+echo p > "$AB2/files/Pictures/p.txt"
+manifest_init "$AB2/manifest.tsv"
+manifest_add "$AB2/manifest.tsv" d Pictures 0 755
+manifest_add "$AB2/manifest.tsv" f Pictures/p.txt 2 644
+( HOME="$AH2"; restore_apply "$AB2" ) >/dev/null 2>&1; code1=$?
+( HOME="$AH2"; restore_apply "$AB2" ) >/dev/null 2>&1; code2=$?
+if [ "$code1" -eq 0 ] && [ "$code2" -eq 0 ] && [ "$(cat "$AH2/Pictures/p.txt")" = "p" ]; then
+  pass "restore_apply exits 0 on a clean run, and again on a re-run"
+else
+  fail "restore_apply clean run (got $code1 and $code2)"
+fi
+
+msg=$( ( HERMIT_COLOR=always die 3 "boom" ) 2>&1 )
+if [ "$msg" = $'\033[31m[hermit] ERROR:\033[0m boom' ]; then pass "die is red when color is forced on"; else fail "die is red when color is forced on"; fi
+
+msg=$( ( HERMIT_COLOR=always warn "careful" ) 2>&1 )
+if [ "$msg" = $'\033[33m[hermit] WARN:\033[0m careful' ]; then pass "warn is yellow when color is forced on"; else fail "warn is yellow when color is forced on"; fi
+
+msg=$( ( HERMIT_COLOR=always ok "done" ) 2>&1 )
+if [ "$msg" = $'\033[32m[hermit] OK:\033[0m done' ]; then pass "ok is green when color is forced on"; else fail "ok is green when color is forced on"; fi
+
+msg=$( ( HERMIT_COLOR=never warn "careful" ) 2>&1 )
+if [ "$msg" = "[hermit] WARN: careful" ]; then pass "color can be forced off"; else fail "color can be forced off"; fi
+
+msg=$( ( warn "careful" ) 2>&1 )
+if [ "$msg" = "[hermit] WARN: careful" ]; then pass "no color when output is not a terminal"; else fail "no color when output is not a terminal"; fi
+
+msg=$( ( HERMIT_COLOR=always info "plain" ) 2>&1 )
+if [ "$msg" = "[hermit] plain" ]; then pass "info stays uncolored"; else fail "info stays uncolored"; fi
+
 # ---- add new tests ABOVE this line ----
 printf '\n%d failure(s)\n' "$fails"
 [ "$fails" -eq 0 ]

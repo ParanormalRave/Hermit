@@ -12,14 +12,27 @@ EX_BACKUP=5
 EX_PARTIAL=6
 EX_DEPENDENCY=7
 
+# _c CODE  print a color escape, but only when it makes sense.
+# HERMIT_COLOR=always forces color on, =never forces it off; by default color is
+# used only when stderr is a terminal and NO_COLOR is not set.
+_c() {
+  case "${HERMIT_COLOR:-auto}" in
+    always) ;;
+    never) return 0 ;;
+    *) { [ -t 2 ] && [ -z "${NO_COLOR:-}" ]; } || return 0 ;;
+  esac
+  printf '\033[%sm' "$1"
+}
+
 info() { printf '[hermit] %s\n' "$*" >&2; }
-warn() { printf '[hermit] WARN: %s\n' "$*" >&2; }
+warn() { printf '%s[hermit] WARN:%s %s\n' "$(_c 33)" "$(_c 0)" "$*" >&2; }
+ok() { printf '%s[hermit] OK:%s %s\n' "$(_c 32)" "$(_c 0)" "$*" >&2; }
 
 # die CODE MESSAGE...  print an error and exit with CODE.
 die() {
   local code=${1:-1}
   shift
-  printf '[hermit] ERROR: %s\n' "$*" >&2
+  printf '%s[hermit] ERROR:%s %s\n' "$(_c 31)" "$(_c 0)" "$*" >&2
   exit "$code"
 }
 
