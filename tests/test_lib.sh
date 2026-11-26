@@ -196,3 +196,51 @@ test_valid_rel_regressions
 
 printf '\n%d failure(s)\n' "$fails"
 [ "$fails" -eq 0 ]
+
+
+BUILD_SRC="$FAKE_HOME/build_src"
+BUILD_OUT="$FAKE_HOME/built.tsv"
+mkdir -p "$BUILD_SRC/Documents/sub"
+chmod 755 "$BUILD_SRC/Documents" "$BUILD_SRC/Documents/sub"
+echo hi > "$BUILD_SRC/Documents/my notes.txt"
+echo x > "$BUILD_SRC/Documents/sub/a.txt"
+chmod 644 "$BUILD_SRC/Documents/my notes.txt"
+chmod 600 "$BUILD_SRC/Documents/sub/a.txt"
+touch "$BUILD_SRC/Documents/tab"$'\t'"name.txt"
+
+manifest_build "$BUILD_SRC" "$BUILD_OUT" 2>/dev/null
+rows=$(manifest_read "$BUILD_OUT" 2>/dev/null)
+
+has_row() { printf '%s\n' "$rows" | grep -qxF -- "$1"; }
+
+if has_row $'f\tDocuments/my notes.txt\t3\t644'; then
+  pass "manifest_build records a file with size and mode"
+else
+  fail "manifest_build records a file with size and mode"
+fi
+
+if has_row $'d\tDocuments/sub\t0\t755'; then
+  pass "manifest_build records a directory with size 0"
+else
+  fail "manifest_build records a directory with size 0"
+fi
+
+if has_row $'f\tDocuments/sub/a.txt\t2\t600'; then
+  pass "manifest_build keeps mode 600"
+else
+  fail "manifest_build keeps mode 600"
+fi
+
+if printf '%s\n' "$rows" | grep -qF 'tab'; then
+  fail "manifest_build skips a name containing a tab"
+else
+  pass "manifest_build skips a name containing a tab"
+fi
+
+docs_line=$(printf '%s\n' "$rows" | grep -nF $'d\tDocuments\t' | head -1 | cut -d: -f1)
+sub_line=$(printf '%s\n' "$rows" | grep -nF $'d\tDocuments/sub\t' | head -1 | cut -d: -f1)
+if [ "${docs_line:-99}" -lt "${sub_line:-0}" ]; then
+  pass "manifest_build lists a parent before its child"
+else
+  fail "manifest_build lists a parent before its child"
+fi  

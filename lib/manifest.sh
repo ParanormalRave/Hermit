@@ -117,3 +117,30 @@ manifest_read() {
 
   [ "$header_seen" -eq 1 ]
 }
+
+
+manifest_build() {
+  local dir=${1:-} file=${2:-}
+  local type rel size mode
+  local added=0 rejected=0
+
+  [ -d "$dir" ] || return 1
+  manifest_init "$file" || return 1
+
+  while IFS= read -r -d '' type &&
+    IFS= read -r -d '' rel &&
+    IFS= read -r -d '' size &&
+    IFS= read -r -d '' mode; do
+    if [ "$type" = d ]; then
+      size=0
+    fi
+    if manifest_add "$file" "$type" "$rel" "$size" "$mode"; then
+      added=$(( added + 1 ))
+    else
+      warn "manifest: skipping unsupported name or mode: $rel"
+      rejected=$(( rejected + 1 ))
+    fi
+  done < <(find "$dir" -mindepth 1 \( -type f -o -type d \) -printf '%y\0%P\0%s\0%m\0')
+
+  info "manifest: $added entries, $rejected skipped"
+}
