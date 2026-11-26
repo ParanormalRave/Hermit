@@ -172,3 +172,31 @@ output means clean — the required end-of-step gate.
 **Gotcha:** no output IS the pass signal. A new warning after a future edit
 means the edit introduced it — fix only that warning, don't reformat
 working code around it.
+
+---
+
+## macOS support series (feat/macos-support) — one portable code path for both OSes
+
+**Built:** macOS support across `lib/common.sh` (`stat_mode`/`stat_size`: GNU
+`stat -c` then BSD `stat -f`), `lib/drive.sh` (`df -P -k` times 1024, `mount`
+table parsing with longest-prefix match when `findmnt` is missing,
+`find -print0` sizes), `lib/manifest.sh` (`find -print0` build, parent-first
+order kept), `lib/restore.sh` (pure-bash `_canonical`/`_collapse` replacing
+`realpath -m`, indexed mode arrays replacing `local -A`), `hermit`
+(`readlink`-loop plus `cd -P` script path, per-folder trailing-slash rsync
+with probed `--no-links`/`--info`, top-folder `chmod` from source mode),
+portable tests (`touch -t`, `-ot`/`-nt` mtime, `TMPDIR`-aware guard),
+`install.sh` (`~` via variable, OS-neutral hints), docs and a macOS CI job.
+
+**Key concept:** probe, don't detect. Instead of checking `uname`, each step
+tries the GNU spelling and falls back to the BSD one (`stat -c` else
+`stat -f`), or greps `rsync --help` for a flag before using it. One code
+path runs everywhere, and the fake-HOME round trip (`diff -r` clean) proves
+both sides agree on modes, mtimes and layout.
+
+**Gotcha:** three traps. (1) `set -e` plus `[ cond ] && action` as a
+statement aborts when the condition is false — use a real `if`. (2)
+`"array[@]"` on an empty array under `set -u` fails on bash 3.2 — use the
+`${arr[@]+"${arr[@]}"}` idiom the codebase already uses. (3) `/var` is a
+symlink to `/private/var` on macOS, so `_canonical` tests must compare
+against the `cd -P` physical base, not the `mktemp` path as printed.

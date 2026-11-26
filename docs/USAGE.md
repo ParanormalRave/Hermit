@@ -9,14 +9,14 @@ hermit --help
 hermit --version
 ```
 
-`DRIVE` is the folder where your drive is mounted, for example `/media/you/MyDrive`.
+`DRIVE` is the folder where your drive is mounted, for example `/media/you/MyDrive` on Linux or `/Volumes/MyDrive` on macOS.
 
 ## Requirements
 
-- Linux with bash. Hermit targets Debian and Ubuntu, and is developed on Fedora.
-- `rsync`
-- The usual GNU tools (`find`, `stat`, `df`, `realpath`), which every mainstream distribution has.
-- Optional: `findmnt` (to detect the drive's filesystem) and `numfmt` (to print sizes like `1.2GiB`). Hermit works without them.
+- Linux or macOS with bash. Hermit targets Debian and Ubuntu, and works on stock macOS (bash 3.2, no extra tools needed).
+- `rsync` (most Linux distributions ship GNU rsync; macOS ships openrsync, which Hermit also understands).
+- The usual tools (`find`, `stat`, `df`): the GNU versions on Linux, the BSD ones on macOS. Hermit speaks both.
+- Optional: `findmnt` on Linux (to detect the drive's filesystem) and `numfmt` (to print sizes like `1.2GiB`). Hermit works without them; on macOS the filesystem check reads the `mount` table instead and stays silent when it cannot tell.
 
 ## Backing up
 

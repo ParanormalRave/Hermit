@@ -11,7 +11,7 @@ Every Hermit command ends with an exit code. `0` means everything worked. Any ot
 | 4 | SPACE | Not enough free space. Hermit needs the size of your files plus a 5% margin. | Free some space, or use a bigger drive. |
 | 5 | BACKUP | There is no valid Hermit backup on that drive: the `hermit-backup` folder, its manifest or its `files` folder is missing, or the manifest is unreadable. | Check you pointed at the right drive. |
 | 6 | PARTIAL | Hermit finished, but some items could not be copied or were refused. The rest was done. | Read the warnings above the last line. |
-| 7 | DEPENDENCY | A tool Hermit needs is not installed (currently: `rsync`). | Install it, for example `sudo apt install rsync`. |
+| 7 | DEPENDENCY | A tool Hermit needs is not installed (currently: `rsync`). | Install it: `sudo apt install rsync` on Debian/Ubuntu; macOS ships it with the developer tools. |
 
 ## Reading the exit code
 
@@ -40,6 +40,7 @@ Messages go to the error stream (stderr). When it is a terminal, `ERROR` is red,
 
 ## Special cases
 
+- Hermit understands both GNU rsync (Linux) and the openrsync that ships with macOS, including their matching exit codes.
 - rsync reports code 24 when a file disappears while it is being copied (you deleted it mid-backup). Hermit treats that as a warning, not a failure.
 - rsync code 23 (some files could not be read) becomes Hermit code 6. The backup is still written, and its manifest lists only what actually reached the drive.
 - rsync codes 11 and 12 (disk error, or the connection dropped, as when a drive is unplugged) become code 3.

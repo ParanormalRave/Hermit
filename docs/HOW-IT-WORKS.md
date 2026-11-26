@@ -88,12 +88,14 @@ The dry run and the real restore use the same plan code, so the dry run cannot p
 
 - `tests/test_lib.sh` tests the building blocks one by one.
 - `tests/test_v01.sh` runs a whole backup and restore in a temporary fake home and checks the result.
-- Both run in a temporary folder and never touch your real files.
-- GitHub Actions runs ShellCheck and both test files on Ubuntu for every push.
+- `tests/test_install.sh` runs the installer against this checkout in a temporary fake home.
+- All three run in a temporary folder and never touch your real files.
+- GitHub Actions runs ShellCheck and all three test files on Ubuntu for every push, and the three test files on macOS too (ShellCheck is Linux-only there, since it is not installed on stock macOS).
 
 ```bash
 bash tests/test_lib.sh
 bash tests/test_v01.sh
+bash tests/test_install.sh
 ```
 
 ## Known limits in v0.1
