@@ -5,7 +5,34 @@ set -euo pipefail
 HERMIT_VERSION="0.1.1"
 BACKUP_DIRS=(Documents Downloads Desktop Pictures Videos Music)
 
-HERMIT_SCRIPT="$(readlink -f "${BASH_SOURCE[0]}")"
+# _hermit_script_path SRC — resolve SRC to an absolute path, chasing any
+# symlink chain with plain readlink (portable readlink -f) and landing in
+# the physical directory with cd -P/pwd -P.
+_hermit_script_path() {
+  local src=${1:-} dir base link
+  [ -n "$src" ] || return 1
+  while [ -L "$src" ]; do
+    link=$(readlink "$src") || return 1
+    case "$link" in
+      /*) src=$link ;;
+      *)
+        case "$src" in
+          */*) src=${src%/*}/$link ;;
+          *) src=./$link ;;
+        esac
+        ;;
+    esac
+  done
+  case "$src" in
+    */*) dir=${src%/*} base=${src##*/} ;;
+    *) dir=. base=$src ;;
+  esac
+  [ -n "$dir" ] || dir=/
+  dir=$(cd -P -- "$dir" 2>/dev/null && pwd -P) || return 1
+  printf '%s/%s\n' "$dir" "$base"
+}
+
+HERMIT_SCRIPT="$(_hermit_script_path "${BASH_SOURCE[0]}")"
 HERMIT_DIR="$(dirname "$HERMIT_SCRIPT")"
 for lib in common paths manifest restore drive; do
   if [ ! -r "$HERMIT_DIR/lib/$lib.sh" ]; then
@@ -102,33 +129,69 @@ cmd_backup() {
 
   local files_dir="$dest/files"
   local skipped=0
-  local path
-  local -a sources=()
+  local path folder
   mkdir -p "$files_dir"
 
+  # Flags only where the local rsync knows them: GNU has --no-links and
+  # --info, openrsync (macOS) has neither and skips symlinks on its own.
+  local -a rsync_extra=()
+  local rsync_help
+  rsync_help=$(rsync --help 2>&1) || true
+  case "$rsync_help" in
+    *--no-links*) rsync_extra+=(--no-links) ;;
+  esac
+  case "$rsync_help" in
+    *--info*)
+      if [ -t 1 ]; then
+        rsync_extra+=(--info=progress2,nonreg0)
+      else
+        rsync_extra+=(--info=nonreg0)
+      fi
+      ;;
+  esac
+
+  info "copying: ${found[*]}"
+
+  # One folder at a time with a trailing slash: openrsync ignores the /./
+  # cut that the old single -R invocation relied on and would rebuild the
+  # wrong tree. The top folder itself is then chmodded from its source,
+  # because a trailing-slash copy does not carry its mode across.
+  local rsync_rc=0 rc mode hermit_rc
   for folder in "${found[@]}"; do
     while IFS= read -r -d '' path; do
       warn "skipping (not a regular file): $path"
       skipped=$(( skipped + 1 ))
-    done < <(find "$HOME/$folder" ! -type f ! -type d -print0)
-    sources+=("$HOME/./$folder")
+    done < <(find "$HOME/$folder" ! -type f ! -type d -print0 2>/dev/null)
+    rc=0
+    rsync -rpt ${rsync_extra[@]+"${rsync_extra[@]}"} \
+      "$HOME/$folder/" "$files_dir/$folder/" || rc=$?
+    case "$rc" in
+      0) ;;
+      24)
+        warn "some files vanished while copying (changed or deleted meanwhile); the rest was saved"
+        if [ "$rsync_rc" -eq 0 ]; then
+          rsync_rc=24
+        fi
+        ;;
+      23)
+        warn "some files could not be copied (unreadable?); this backup is partial"
+        rsync_rc=23
+        ;;
+      *)
+        hermit_rc=$(rsync_exit_to_hermit "$rc")
+        die "$hermit_rc" "rsync stopped (code $rc): is the drive still connected, and not full?"
+        ;;
+    esac
+    mode=$(stat_mode "$HOME/$folder" 2>/dev/null) || mode=""
+    if [ -n "$mode" ]; then
+      chmod "$mode" "$files_dir/$folder" || warn "could not set mode on: $folder"
+    fi
   done
-
-  local -a progress=(--info=nonreg0)
-  if [ -t 1 ]; then
-    progress=("--info=progress2,nonreg0")
-  fi
-
-  info "copying: ${found[*]}"
-
-  local rsync_rc=0 hermit_rc
-  rsync -rptR --no-links "${progress[@]}" "${sources[@]}" "$files_dir/" || rsync_rc=$?
   hermit_rc=$(rsync_exit_to_hermit "$rsync_rc")
   case "$rsync_rc" in
     0) ;;
     24) warn "some files vanished while copying (changed or deleted meanwhile); the rest was saved" ;;
     23) warn "some files could not be copied (unreadable?); this backup is partial" ;;
-    *) die "$hermit_rc" "rsync stopped (code $rsync_rc): is the drive still connected, and not full?" ;;
   esac
 
   manifest_build "$files_dir" "$dest/manifest.tsv" ||
