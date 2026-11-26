@@ -30,7 +30,21 @@ hermit restore /media/mydrive
 
 ## Install
 
-You need `bash` and `rsync` (Debian/Ubuntu: `sudo apt install rsync`).
+One command:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ParanormalRave/Hermit/master/install.sh | bash
+```
+
+Want to read it first? Fair.
+
+```bash
+curl -fsSLO https://raw.githubusercontent.com/ParanormalRave/Hermit/master/install.sh
+less install.sh
+bash install.sh
+```
+
+Prefer to do it by hand?
 
 ```bash
 git clone https://github.com/ParanormalRave/Hermit.git ~/.local/share/hermit
@@ -90,6 +104,7 @@ More detail: [How it works](docs/HOW-IT-WORKS.md).
 ```
 hermit/
 ├── hermit              # main entry point (CLI)
+├── install.sh          # one-command installer
 ├── lib/
 │   ├── common.sh       # logging, colors, exit codes
 │   ├── paths.sh        # path validation and mapping
@@ -99,6 +114,8 @@ hermit/
 ├── tests/
 │   ├── test_lib.sh     # unit tests
 │   └── test_v01.sh     # end-to-end backup and restore test
+│   ├── test_v01.sh     # end-to-end backup and restore test
+│   └── test_install.sh # installer test
 ├── docs/               # usage, how it works, exit codes, FAQ
 ├── assets/             # logo and art
 └── .github/workflows/  # CI
@@ -126,6 +143,7 @@ The tests are plain bash and run in a temporary fake home, never touching your r
 ```bash
 bash tests/test_lib.sh     # the building blocks
 bash tests/test_v01.sh     # a full backup and restore, checked end to end
+bash tests/test_install.sh # the installer, in a fake home
 ```
 
 GitHub Actions runs ShellCheck and both test files on Ubuntu for every push.

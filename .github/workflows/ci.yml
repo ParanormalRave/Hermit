@@ -35,3 +35,6 @@ jobs:
 
       - name: End-to-end tests
         run: bash tests/test_v01.sh
+
+      - name: Installer test
+        run: bash tests/test_install.sh
