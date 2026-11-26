@@ -65,6 +65,8 @@ source "$REPO/lib/paths.sh"
 source "$REPO/lib/manifest.sh"
 # shellcheck source=/dev/null
 source "$REPO/lib/restore.sh"
+# shellcheck source=/dev/null
+source "$REPO/lib/drive.sh"
 
 # Fix 1: a data row must contain exactly 3 tabs (4 fields).
 test_manifest_rejects_extra_field() {
@@ -426,6 +428,61 @@ if [ "$(stat -c %a "$AH3/Existing")" = "755" ]; then pass "an existing folder ke
 if [ "$code" -eq 0 ]; then pass "restore_apply exits 0 when modes are applied"; else fail "restore_apply exits 0 when modes are applied (got $code)"; fi
 
 chmod -R u+w "$AH3"
+
+check_val() {
+  if [ "$2" = "$3" ]; then pass "$1"; else fail "$1 (expected [$2], got [$3])"; fi
+}
+
+D_OK="$FAKE_HOME/drive_ok"
+mkdir -p "$D_OK"
+if drive_probe "$D_OK" 2>/dev/null && [ -z "$(ls -A "$D_OK")" ]; then pass "drive_probe succeeds on a writable folder and leaves nothing behind"; else fail "drive_probe succeeds on a writable folder and leaves nothing behind"; fi
+
+if drive_probe "$FAKE_HOME/no_such_folder" 2>/dev/null; then fail "drive_probe fails on a missing folder"; else pass "drive_probe fails on a missing folder"; fi
+
+D_RO="$FAKE_HOME/drive_ro"
+mkdir -p "$D_RO"
+chmod 555 "$D_RO"
+if [ "$(id -u)" -eq 0 ]; then
+  pass "drive_probe fails on a read-only folder (skipped: running as root)"
+elif drive_probe "$D_RO" 2>/dev/null; then
+  fail "drive_probe fails on a read-only folder"
+else
+  pass "drive_probe fails on a read-only folder"
+fi
+chmod 755 "$D_RO"
+
+free=$(drive_free_bytes "$FAKE_HOME" 2>/dev/null)
+case "$free" in
+  '' | *[!0-9]*) fail "drive_free_bytes returns a number (got [$free])" ;;
+  *) pass "drive_free_bytes returns a number" ;;
+esac
+
+if space_ok 1000 900; then pass "space_ok accepts when free covers need plus 5%"; else fail "space_ok accepts when free covers need plus 5%"; fi
+if space_ok 1000 960; then fail "space_ok refuses when the 5% margin does not fit"; else pass "space_ok refuses when the 5% margin does not fit"; fi
+if space_ok 1000 0; then pass "space_ok accepts a zero-byte backup"; else fail "space_ok accepts a zero-byte backup"; fi
+if space_ok abc 10; then fail "space_ok refuses a non-number"; else pass "space_ok refuses a non-number"; fi
+
+for fs in vfat exfat ntfs fuseblk; do
+  if fs_is_lossy "$fs"; then pass "fs_is_lossy flags $fs"; else fail "fs_is_lossy flags $fs"; fi
+done
+for fs in ext4 btrfs xfs ""; do
+  if fs_is_lossy "$fs"; then fail "fs_is_lossy accepts [$fs]"; else pass "fs_is_lossy accepts [$fs]"; fi
+done
+
+SZ="$FAKE_HOME/size_src"
+mkdir -p "$SZ/a/b"
+head -c 1000 /dev/zero > "$SZ/a/one.bin"
+head -c 500 /dev/zero > "$SZ/a/b/two.bin"
+ln -s "$SZ/a/one.bin" "$SZ/a/link"
+check_val "backup_size_bytes sums file sizes and ignores folders and symlinks" 1500 "$(backup_size_bytes "$SZ")"
+check_val "backup_size_bytes is 0 for a missing folder" 0 "$(backup_size_bytes "$FAKE_HOME/nope")"
+
+check_val "rsync exit 0 is success" 0 "$(rsync_exit_to_hermit 0)"
+check_val "rsync exit 24 (files vanished) is only a warning" 0 "$(rsync_exit_to_hermit 24)"
+check_val "rsync exit 23 is a partial backup" 6 "$(rsync_exit_to_hermit 23)"
+check_val "rsync exit 11 is a drive problem" 3 "$(rsync_exit_to_hermit 11)"
+check_val "rsync exit 12 is a drive problem" 3 "$(rsync_exit_to_hermit 12)"
+check_val "an unknown rsync exit is a plain failure" 1 "$(rsync_exit_to_hermit 5)"
 
 # ---- add new tests ABOVE this line ----
 printf '\n%d failure(s)\n' "$fails"
