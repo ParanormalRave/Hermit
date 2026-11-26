@@ -265,5 +265,44 @@ else
   pass "meta_write rejects a newline in a value"
 fi
 
+( die 42 "boom" ) 2>/dev/null
+code=$?
+if [ "$code" -eq 42 ]; then
+  pass "die exits with the code it is given"
+else
+  fail "die exits with the code it is given"
+fi
+
+msg=$( ( die 3 "drive gone" ) 2>&1 )
+if [ "$msg" = "[hermit] ERROR: drive gone" ]; then
+  pass "die prints the message on stderr"
+else
+  fail "die prints the message on stderr"
+fi
+
+( require_cmd no-such-command-xyz ) 2>/dev/null
+code=$?
+if [ "$code" -eq 7 ]; then
+  pass "require_cmd exits 7 when a tool is missing"
+else
+  fail "require_cmd exits 7 when a tool is missing"
+fi
+
+( error "x" ) 2>/dev/null
+code=$?
+if [ "$code" -eq 1 ]; then
+  pass "error still exits 1"
+else
+  fail "error still exits 1"
+fi
+
+table="${EX_USAGE:-?}.${EX_DRIVE:-?}.${EX_SPACE:-?}.${EX_BACKUP:-?}.${EX_PARTIAL:-?}.${EX_DEPENDENCY:-?}"
+if [ "$table" = "2.3.4.5.6.7" ]; then
+  pass "exit code table is stable"
+else
+  fail "exit code table is stable (got $table)"
+fi
+
+# ---- add new tests ABOVE this line ----
 printf '\n%d failure(s)\n' "$fails"
 [ "$fails" -eq 0 ]

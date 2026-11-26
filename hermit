@@ -41,11 +41,11 @@ cmd_backup() {
 
   require_cmd rsync
 
-  if [ ! -d "$drive" ]; then
-    error "not a folder: $drive"
+   if [ ! -d "$drive" ]; then
+    die "$EX_DRIVE" "not a folder: $drive"
   fi
   if [ ! -w "$drive" ]; then
-    error "not writable: $drive"
+    die "$EX_DRIVE" "not writable: $drive"
   fi
 
   local folder
@@ -154,13 +154,14 @@ cmd_restore() {
     exit 2
   fi
 
+  [ -d "$drive" ] || die "$EX_DRIVE" "not a folder: $drive"
   local backup="$drive/hermit-backup"
   local manifest="$backup/manifest.tsv"
-  [ -d "$backup" ] || error "no Hermit backup found at: $backup"
-  [ -r "$manifest" ] || error "cannot read manifest: $manifest"
-  [ -d "$backup/files" ] || error "backup has no files folder: $backup/files"
+  [ -d "$backup" ] || die "$EX_BACKUP" "no Hermit backup found at: $backup"
+  [ -r "$manifest" ] || die "$EX_BACKUP" "cannot read manifest: $manifest"
+  [ -d "$backup/files" ] || die "$EX_BACKUP" "backup has no files folder: $backup/files"
   manifest_read "$manifest" >/dev/null 2>&1 ||
-    error "manifest is unreadable or has a bad header: $manifest"
+    die "$EX_BACKUP" "manifest is unreadable or has a bad header: $manifest"
 
   if [ "$dry_run" = true ]; then
     info "dry run: nothing will be changed"
