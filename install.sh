@@ -42,6 +42,9 @@ terminal_cols() {
 # printed, so the caller can fall back to plain text.
 show_panel() {
   local version=$1 link=$2 dir=$3 file=$4
+  # A variable, not a literal \~: bash 3.2 keeps the backslash, so the
+  # path would print with a stray backslash on macOS.
+  local tilde='~'
   local -a art=() text=()
   local line width=0 tw=0 cols on='' off='' i j top
   [ -f "$file" ] || return 1
@@ -53,8 +56,8 @@ show_panel() {
 
   text=(
     "installed: $version"
-    "command:   ${link/#"$HOME"/\~}"
-    "code:      ${dir/#"$HOME"/\~}"
+    "command:   ${link/#"$HOME"/$tilde}"
+    "code:      ${dir/#"$HOME"/$tilde}"
     "next:      hermit --help"
     "docs:      github.com/ParanormalRave/Hermit"
   )
@@ -100,7 +103,7 @@ main() {
   local link=$bin/hermit
   local version
 
-  command -v git >/dev/null 2>&1 || fail "git is required (Debian/Ubuntu: sudo apt install git)"
+  command -v git >/dev/null 2>&1 || fail "git is required (Debian/Ubuntu: sudo apt install git; macOS: xcode-select --install)"
 
   if [ -d "$dir/.git" ]; then
     say "updating $dir"
@@ -132,7 +135,7 @@ main() {
   ln -sfn "$dir/hermit" "$link"
 
   if ! command -v rsync >/dev/null 2>&1; then
-    say "WARNING: rsync is not installed, and Hermit needs it (Debian/Ubuntu: sudo apt install rsync)"
+    say "WARNING: rsync is not installed, and Hermit needs it (Debian/Ubuntu: sudo apt install rsync; macOS ships it with the developer tools)"
   fi
 
   case ":$PATH:" in
