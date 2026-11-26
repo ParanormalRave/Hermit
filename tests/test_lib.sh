@@ -63,6 +63,8 @@ fi
 source "$REPO/lib/paths.sh"
 # shellcheck source=/dev/null
 source "$REPO/lib/manifest.sh"
+# shellcheck source=/dev/null
+source "$REPO/lib/restore.sh"
 
 # Fix 1: a data row must contain exactly 3 tabs (4 fields).
 test_manifest_rejects_extra_field() {
@@ -301,6 +303,44 @@ if [ "$table" = "2.3.4.5.6.7" ]; then
   pass "exit code table is stable"
 else
   fail "exit code table is stable (got $table)"
+fi
+
+PLAN_BACKUP="$FAKE_HOME/plan_backup"
+mkdir -p "$PLAN_BACKUP/files/Documents/sub" "$PLAN_BACKUP/files/Videos"
+echo a > "$PLAN_BACKUP/files/Documents/new.txt"
+echo b > "$PLAN_BACKUP/files/Documents/have.txt"
+echo c > "$PLAN_BACKUP/files/Documents/sub/deep.txt"
+manifest_init "$PLAN_BACKUP/manifest.tsv"
+manifest_add "$PLAN_BACKUP/manifest.tsv" d Documents 0 755
+manifest_add "$PLAN_BACKUP/manifest.tsv" f Documents/new.txt 2 644
+manifest_add "$PLAN_BACKUP/manifest.tsv" f Documents/have.txt 2 644
+manifest_add "$PLAN_BACKUP/manifest.tsv" f Documents/gone.txt 2 644
+manifest_add "$PLAN_BACKUP/manifest.tsv" d Documents/sub 0 755
+manifest_add "$PLAN_BACKUP/manifest.tsv" f Documents/sub/deep.txt 2 644
+manifest_add "$PLAN_BACKUP/manifest.tsv" d Videos 0 755
+manifest_add "$PLAN_BACKUP/manifest.tsv" d Linked 0 755
+manifest_add "$PLAN_BACKUP/manifest.tsv" f Linked/x.txt 2 644
+
+mkdir -p "$HOME/Documents" "$HOME/real_elsewhere"
+echo old > "$HOME/Documents/have.txt"
+ln -s "$HOME/real_elsewhere" "$HOME/Linked"
+
+plan=$(restore_plan "$PLAN_BACKUP" 2>/dev/null)
+has_plan() { printf '%s\n' "$plan" | grep -qxF -- "$1"; }
+check_plan() { if has_plan "$1"; then pass "restore_plan: $2"; else fail "restore_plan: $2"; fi; }
+check_plan $'have-dir\td\tDocuments' "an existing folder needs nothing"
+check_plan $'copy\tf\tDocuments/new.txt' "a missing file is copied"
+check_plan $'skip-exists\tf\tDocuments/have.txt' "an existing file is never overwritten"
+check_plan $'skip-missing\tf\tDocuments/gone.txt' "a file absent from the backup is skipped"
+check_plan $'mkdir\td\tDocuments/sub' "a missing folder is created"
+check_plan $'copy\tf\tDocuments/sub/deep.txt' "a file in a new folder is copied"
+check_plan $'mkdir\td\tVideos' "a missing top-level folder is created"
+check_plan $'conflict\td\tLinked' "a symlink where a folder belongs is a conflict"
+check_plan $'blocked\tf\tLinked/x.txt' "files inside a conflict are blocked"
+if [ ! -e "$HOME/Documents/new.txt" ] && [ ! -d "$HOME/Videos" ]; then
+  pass "restore_plan changes nothing on disk"
+else
+  fail "restore_plan changes nothing on disk"
 fi
 
 # ---- add new tests ABOVE this line ----

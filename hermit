@@ -7,7 +7,7 @@ BACKUP_DIRS=(Documents Downloads Desktop Pictures Videos Music)
 
 HERMIT_SCRIPT="$(readlink -f "${BASH_SOURCE[0]}")"
 HERMIT_DIR="$(dirname "$HERMIT_SCRIPT")"
-for lib in common paths manifest; do
+for lib in common paths manifest restore; do
   if [ ! -r "$HERMIT_DIR/lib/$lib.sh" ]; then
     echo "hermit: missing library: $HERMIT_DIR/lib/$lib.sh" >&2
     exit 1
@@ -167,7 +167,7 @@ cmd_restore() {
     info "dry run: nothing will be changed"
   fi
   info "restore source: $backup"
-  info "TODO: restore logic (dry run: $dry_run)"
+  restore_dry_run "$backup"
 }
 
 main() {
