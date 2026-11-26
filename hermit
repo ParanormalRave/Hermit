@@ -127,7 +127,46 @@ cmd_backup() {
 }
 
 cmd_restore() {
-  printf 'TODO: restore %s\n' "${*:-<no drive given>}" >&2
+  local drive="" dry_run=false arg
+
+  for arg in "$@"; do
+    case "$arg" in
+      --dry-run) dry_run=true ;;
+      -*)
+        warn "unknown option: $arg"
+        usage >&2
+        exit 2
+        ;;
+      *)
+        if [ -n "$drive" ]; then
+          warn "too many arguments"
+          usage >&2
+          exit 2
+        fi
+        drive=$arg
+        ;;
+    esac
+  done
+
+  if [ -z "$drive" ]; then
+    warn "missing drive path"
+    usage >&2
+    exit 2
+  fi
+
+  local backup="$drive/hermit-backup"
+  local manifest="$backup/manifest.tsv"
+  [ -d "$backup" ] || error "no Hermit backup found at: $backup"
+  [ -r "$manifest" ] || error "cannot read manifest: $manifest"
+  [ -d "$backup/files" ] || error "backup has no files folder: $backup/files"
+  manifest_read "$manifest" >/dev/null 2>&1 ||
+    error "manifest is unreadable or has a bad header: $manifest"
+
+  if [ "$dry_run" = true ]; then
+    info "dry run: nothing will be changed"
+  fi
+  info "restore source: $backup"
+  info "TODO: restore logic (dry run: $dry_run)"
 }
 
 main() {
