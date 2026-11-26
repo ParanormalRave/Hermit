@@ -53,8 +53,8 @@ cmd_backup() {
      local answer=""
       printf '[hermit] %s already exists. Overwrite? [y/N] ' "$dest" >&2
       read -r answer || answer=n
-    case "$answer" in 
-    y | Y | yes | YES) info "overwriting $dest" ;; 
+      case "$answer" in
+      y | Y | yes | YES) info "overwriting $dest" ;;
       *)
         warn "cancelled, nothing changed"
         exit 1
@@ -76,9 +76,11 @@ cmd_backup() {
     error "none of the standard folders exist under $HOME"
   fi
   info "will save: ${found[*]}"
+
   local files_dir="$dest/files"
   local skipped=0
   local path
+  local -a sources=()
   mkdir -p "$files_dir"
 
   for folder in "${found[@]}"; do
@@ -86,11 +88,17 @@ cmd_backup() {
       warn "skipping (not a regular file): $path"
       skipped=$(( skipped + 1 ))
     done < <(find "$HOME/$folder" ! -type f ! -type d -print0)
-
-    info "copying $folder"
-    rsync -rpt --no-links "$HOME/$folder/" "$files_dir/$folder/" >/dev/null ||
-      error "rsync failed for $folder"
+    sources+=("$HOME/./$folder")
   done
+
+  local -a progress=(--info=nonreg0)
+  if [ -t 1 ]; then
+    progress=(--info=progress2,nonreg0)
+  fi
+
+  info "copying: ${found[*]}"
+  rsync -rptR --no-links "${progress[@]}" "${sources[@]}" "$files_dir/" ||
+    error "rsync failed"
 
   info "backup copied to $dest (skipped $skipped non-regular items)"
 }
